@@ -25,6 +25,7 @@ import salesRoutes from './routes/sales.js';
 
 const app = express();
 
+<<<<<<< HEAD
 const parseOrigin = (u) => {
   if (!u) return null;
   try {
@@ -51,6 +52,12 @@ app.use(
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Auth-Token'],
     exposedHeaders: ['X-Auth-Token'],
+=======
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+>>>>>>> ab00bbb5c5a44277562d207c325489da90ca5df4
   })
 );
 app.use(express.json({ limit: '1mb' }));
