@@ -28,7 +28,7 @@ export const register = async (req, res) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
-    return res.status(201).json({ user: { id: user._id, name: user.name, email: user.email, role: user.role, permissions, mustChangePassword: user.mustChangePassword } });
+    return res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, permissions, mustChangePassword: user.mustChangePassword } });
   } catch (e) {
     return res.status(500).json({ message: 'Registration failed' });
   }
@@ -51,7 +51,7 @@ export const login = async (req, res) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
-    return res.json({ user: { id: user._id, name: user.name, email: user.email, role: user.role, permissions, mustChangePassword: user.mustChangePassword } });
+    return res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, permissions, mustChangePassword: user.mustChangePassword } });
   } catch {
     return res.status(500).json({ message: 'Login failed' });
   }

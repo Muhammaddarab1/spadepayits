@@ -45,12 +45,21 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const res = await axios.post('/api/auth/login', { email, password });
+    // store token received from backend
+    if (res.data.token) {
+      localStorage.setItem('authToken', res.data.token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+    }
     setUser(res.data.user);
     if (res.data.user?.mustChangePassword) navigate('/change-password');
     else navigate('/');
   };
 
-  const setAuthState = (_newToken, newUser) => {
+  const setAuthState = (newToken, newUser) => {
+    if (newToken) {
+      localStorage.setItem('authToken', newToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    }
     setUser(newUser);
   };
 
