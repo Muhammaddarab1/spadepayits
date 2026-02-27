@@ -15,6 +15,14 @@ export const AuthProvider = ({ children }) => {
   });
   const navigate = useNavigate();
 
+  // Restore auth token from localStorage on mount
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+  }, []);
+
   useEffect(() => {
     if (user) localStorage.setItem('user', JSON.stringify(user));
     else localStorage.removeItem('user');
@@ -48,6 +56,10 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     try { axios.post('/api/auth/logout').catch(()=>{}); } catch {}
+    // Clear all auth data
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     navigate('/login');
   };
