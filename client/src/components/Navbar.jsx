@@ -17,18 +17,22 @@ export default function Navbar() {
     return () => window.removeEventListener('click', onClick);
   }, []);
 
+
   return (
     <header className="h-14 flex items-center justify-between border-b bg-white px-4">
       <h1 className="text-lg font-semibold">Ticket Management</h1>
-      <div className="relative" ref={menuRef}>
+      <div className="flex items-center gap-2">
+        <div className="relative" ref={menuRef}>
         <button
           aria-label="Account menu"
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center justify-center h-9 w-9 rounded hover:bg-gray-100"
+          className="inline-flex items-center justify-center h-9 w-9 rounded hover:bg-gray-100 overflow-hidden"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
+          {user?.avatar ? (
+            <img src={user.avatar} alt={user.name || 'Me'} className="h-9 w-9 object-cover" />
+          ) : (
+            <div className="h-9 w-9 flex items-center justify-center bg-gray-200 text-gray-700 font-medium">{(user?.name || '?')[0]}</div>
+          )}
         </button>
         {open && (
           <div className="absolute right-0 mt-2 w-56 rounded border bg-white shadow">
@@ -51,6 +55,7 @@ export default function Navbar() {
             </button>
           </div>
         )}
+        </div>
       </div>
     </header>
   );

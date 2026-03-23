@@ -1,6 +1,7 @@
 import SalesTicket from '../models/SalesTicket.js';
 import User from '../models/User.js';
 import path from 'path';
+import { sendEmail } from '../utils/sendEmail.js';
 
 export const createSales = async (req, res) => {
   try {
@@ -20,6 +21,14 @@ export const createSales = async (req, res) => {
       contactPersonName, contactNumber, email, einOrSsn,
       turnaroundTime, dueAt: dueAt || null, assignee: resolvedAssignees[0], assignees: resolvedAssignees, createdBy: req.user.id, notes,
     });
+    // notify assignees (best-effort)
+    (async () => {
+      try {
+        const recipients = await User.find({ _id: { $in: resolvedAssignees } }).select('email');
+        const to = recipients.map(r => r.email).join(',');
+        if (to) sendEmail({ to, subject: `New Sales Ticket: ${doc._id}`, html: `<p>Sales ticket created</p>` }).catch(()=>{});
+      } catch {}
+    })();
     return res.status(201).json(doc);
   } catch {
     return res.status(500).json({ message: 'Failed to create sales ticket' });
@@ -28,7 +37,8 @@ export const createSales = async (req, res) => {
 
 export const listSales = async (req, res) => {
   try {
-    // Everyone can view all, but keep soft-deleted hidden unless Admin
+    // Only Sales and Admin may view all sales tickets
+    if (req.user.role !== 'Admin' && req.user.role !== 'Sales') return res.status(403).json({ message: 'Forbidden' });
     const filter = {};
     if (req.user.role !== 'Admin') filter.isDeleted = false;
     const items = await SalesTicket.find(filter)
@@ -107,7 +117,7 @@ export const addAttachments = async (req, res) => {
     if (!item) return res.status(404).json({ message: 'Not found' });
     const files = (req.files || []).map((f) => ({
       filename: f.originalname,
-      url: `/uploads/${path.basename(f.path)}`,
+      url: `${req.protocol}://${req.get('host')}/uploads/${path.basename(f.path)}`,
       mimetype: f.mimetype,
       size: f.size,
       uploadedBy: req.user.id,

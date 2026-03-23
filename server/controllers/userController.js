@@ -13,26 +13,46 @@ export const listUsers = async (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('_id name email role permissions createdAt updatedAt');
+    const user = await User.findById(req.user.id).select('_id name email role permissions createdAt updatedAt avatar title phone mustChangePassword');
     let permissions = {};
     if (user.role === 'Admin') permissions = { admin: true };
     else {
       const roleDoc = await Role.findOne({ name: user.role });
       permissions = { ...(roleDoc?.permissions || {}), ...(user.permissions || {}) };
     }
-    return res.json({ id: user._id, name: user.name, email: user.email, role: user.role, permissions, mustChangePassword: user.mustChangePassword });
+    return res.json({ id: user._id, name: user.name, email: user.email, role: user.role, permissions, avatar: user.avatar, title: user.title, phone: user.phone, mustChangePassword: user.mustChangePassword });
   } catch {
     return res.status(500).json({ message: 'Failed to fetch profile' });
   }
 };
 
+export const updateMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const { name, email } = req.body;
+    if (name !== undefined) user.name = name;
+    if (email !== undefined) user.email = email;
+    // avatar handled via multer file upload
+    if (req.file) {
+      const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      user.avatar = url;
+    }
+    await user.save();
+    return res.json({ id: user._id, name: user.name, email: user.email, avatar: user.avatar });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to update profile' });
+  }
+};
+
 export const createUser = async (req, res) => {
   try {
-    const { name, email, password, role = 'User', permissions } = req.body;
+    const { name, email, password, role, permissions } = req.body;
     if (!name || !email || !password) return res.status(400).json({ message: 'All fields are required' });
     const exists = await User.findOne({ email });
     if (exists) return res.status(409).json({ message: 'Email already in use' });
-    const user = await User.create({ name, email, password, role, permissions: permissions || {} });
+    const desiredRole = role === 'Admin' ? 'Admin' : 'User';
+    const user = await User.create({ name, email, password, role: desiredRole, permissions: permissions || {} });
     return res.status(201).json({ id: user._id, name: user.name, email: user.email, role: user.role, permissions: user.permissions || {} });
   } catch {
     return res.status(500).json({ message: 'Failed to create user' });

@@ -9,8 +9,15 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 8, select: false },
     role: { type: String, required: true, default: 'User' }, // baseline role; permissions primarily per-user
     permissions: { type: Object, default: {} },
+    avatar: { type: String, default: '' },
+    title: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    // Microsoft 365 integration
+    microsoftId: { type: String, index: true },
+    department: { type: String, default: '' },
+    jobTitle: { type: String, default: '' },
+    // Password reset flow
     mustChangePassword: { type: Boolean, default: true },
-    // Fields for password reset flow
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     // Account lifecycle

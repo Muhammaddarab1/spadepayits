@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import axios from '../api/axiosInstance.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton.jsx';
+import MultiSelect from '../components/MultiSelect.jsx';
 
 export default function TicketNew() {
   const { user } = useAuth();
@@ -89,15 +91,14 @@ export default function TicketNew() {
             <input name="subject" value={form.subject} onChange={handle} className="border rounded px-2 py-1 w-full" required />
           </div>
           <div>
-            <div className="block text-xs text-gray-500 mb-1">Assignees</div>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-auto border rounded p-2">
-              {users.map(u => (
-                <label key={u._id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.assignees.includes(u._id)} onChange={()=>toggleAssignee(u._id)} />
-                  <span>{u.name}</span>
-                </label>
-              ))}
-            </div>
+            <label className="block text-xs text-gray-500">Assignees</label>
+            <MultiSelect
+              options={users.map(u => ({ value: u._id, label: u.name }))}
+              value={form.assignees}
+              onChange={(vals)=>setForm(f=>({ ...f, assignees: vals }))}
+              placeholder="Select assignees"
+              showFilter={false}
+            />
             <div className="text-xs text-gray-500 mt-1">{form.assignees.length} selected</div>
           </div>
         </div>
@@ -126,20 +127,19 @@ export default function TicketNew() {
           <textarea name="description" value={form.description} onChange={handle} className="border rounded px-2 py-1 w-full" rows="4" required />
         </div>
         <div className="grid md:grid-cols-3 gap-3">
-          <div className="md:col-span-2">
-            <div className="block text-xs text-gray-500 mb-1">Tags</div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {tagsCatalog.map(t => (
-                <label key={t._id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.tags.includes(t.name)} onChange={()=>toggleTag(t.name)} />
-                  <span>{t.name}</span>
-                </label>
-              ))}
-            </div>
+            <div className="md:col-span-2">
+            <label className="block text-xs text-gray-500">Tags</label>
+            <MultiSelect
+              options={tagsCatalog.map(t => ({ value: t.name, label: t.name }))}
+              value={form.tags}
+              onChange={(vals)=>setForm(f=>({ ...f, tags: vals }))}
+              placeholder="Select tags"
+              showFilter={false}
+            />
           </div>
           <div>
-            <label className="block text-xs text-gray-500">Due Date/Time</label>
-            <input type="datetime-local" name="dueAt" value={form.dueAt} onChange={handle} className="border rounded px-2 py-1 w-full" />
+            <label className="block text-xs text-gray-500">Due Date</label>
+            <input type="date" name="dueAt" value={form.dueAt} onChange={handle} className="border rounded px-2 py-1 w-full" />
           </div>
           <div>
             <label className="block text-xs text-gray-500">Priority</label>
@@ -168,7 +168,7 @@ export default function TicketNew() {
           <div className="text-xs text-gray-500 mt-1">Up to 5 files</div>
         </div>
         <div className="flex justify-end gap-2">
-          <button onClick={()=>navigate('/troubleshooting')} type="button" className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">Cancel</button>
+          <BackButton to="/troubleshooting">Cancel</BackButton>
           <button disabled={submitting} className="px-3 py-1 rounded bg-primary text-white hover:opacity-90 disabled:opacity-60">
             {submitting ? 'Creating…' : 'Create Ticket'}
           </button>

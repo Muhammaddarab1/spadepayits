@@ -13,10 +13,12 @@ import Users from './pages/Users.jsx';
 import ChangePassword from './pages/ChangePassword.jsx';
 import TicketNew from './pages/TicketNew.jsx';
 import TicketEdit from './pages/TicketEdit.jsx';
+import Profile from './pages/Profile.jsx';
 import SalesNew from './pages/SalesNew.jsx';
 import SalesEdit from './pages/SalesEdit.jsx';
 import SalesList from './pages/SalesList.jsx';
 import MyAssignments from './pages/MyAssignments.jsx';
+import Reports from './pages/Reports.jsx';
 
 const Protected = () => {
   const { user } = useAuth();
@@ -26,6 +28,25 @@ const Protected = () => {
     return <Navigate to="/change-password" replace />;
   }
   return <Outlet />;
+};
+
+const SalesProtected = () => {
+  const { user } = useAuth();
+  const canSales =
+    user?.role === 'Admin' ||
+    user?.permissions?.['sales.viewAll'] ||
+    user?.permissions?.['sales.create'] ||
+    user?.permissions?.['sales.update'];
+  return canSales ? <Outlet /> : <Navigate to="/troubleshooting" replace />;
+};
+const TroubleshootingProtected = () => {
+  const { user } = useAuth();
+  const canTs =
+    user?.role === 'Admin' ||
+    user?.permissions?.['tickets.viewAll'] ||
+    user?.permissions?.['tickets.create'] ||
+    user?.permissions?.['tickets.update'];
+  return canTs ? <Outlet /> : <Navigate to="/sales" replace />;
 };
 
 const AppLayout = () => (
@@ -52,15 +73,21 @@ export default function App() {
       <Route element={<Protected />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomeDashboard />} />
-          <Route path="troubleshooting" element={<Dashboard />} />
+          <Route element={<TroubleshootingProtected />}>
+            <Route path="troubleshooting" element={<Dashboard />} />
+            <Route path="tickets/new" element={<TicketNew />} />
+            <Route path="tickets/:id" element={<TicketEdit />} />
+            <Route path="assignments" element={<MyAssignments />} />
+          </Route>
           <Route path="roles" element={<Roles />} />
           <Route path="users" element={<Users />} />
-          <Route path="tickets/new" element={<TicketNew />} />
-          <Route path="tickets/:id" element={<TicketEdit />} />
-          <Route path="assignments" element={<MyAssignments />} />
-          <Route path="sales" element={<SalesList />} />
-          <Route path="sales/new" element={<SalesNew />} />
-          <Route path="sales/:id" element={<SalesEdit />} />
+          <Route path="profile" element={<Profile />} />
+          <Route path="reports" element={<Reports />} />
+          <Route element={<SalesProtected />}>
+            <Route path="sales" element={<SalesList />} />
+            <Route path="sales/new" element={<SalesNew />} />
+            <Route path="sales/:id" element={<SalesEdit />} />
+          </Route>
         </Route>
       </Route>
     </Routes>

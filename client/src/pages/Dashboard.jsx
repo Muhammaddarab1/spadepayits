@@ -9,7 +9,7 @@ import { Link, useNavigate } from 'react-router-dom';
 export default function Dashboard() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
-  const [filters, setFilters] = useState({ assignee: '', assignees: [], status: '', priority: '', tags: '' });
+  const [filters, setFilters] = useState({ search: '', assignee: '', assignees: [], status: '', priority: '', tags: [] });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const canGenerateReport = user?.role === 'Admin' || user?.permissions?.['reports.generate'];
@@ -20,7 +20,8 @@ export default function Dashboard() {
     if (filters.assignees && filters.assignees.length) q.assignees = filters.assignees.join(',');
     if (filters.status) q.status = filters.status;
     if (filters.priority) q.priority = filters.priority;
-    if (filters.tags) q.tags = filters.tags;
+    if (filters.tags && filters.tags.length) q.tags = filters.tags.join(',');
+    if (filters.search) q.search = filters.search;
     return q;
   }, [filters]);
 
@@ -44,18 +45,6 @@ export default function Dashboard() {
           <p className="text-sm text-gray-500">View and manage troubleshooting tickets only.</p>
         </div>
         <div className="flex gap-2">
-          {canGenerateReport && (
-            <button
-              onClick={async ()=>{
-                const res = await axios.get('/api/reports/tickets', { params: { format: 'csv' }, responseType: 'blob' });
-                const url = window.URL.createObjectURL(new Blob([res.data]));
-                const a = document.createElement('a'); a.href = url; a.download = 'ticket-summary.csv'; a.click(); window.URL.revokeObjectURL(url);
-              }}
-              className="px-3 py-2 rounded bg-gray-800 text-white hover:opacity-90"
-            >
-              One-Click Report
-            </button>
-          )}
           {(user?.permissions?.['tickets.create'] || user?.role === 'Admin') && (
             <Link to="/tickets/new" className="px-3 py-2 rounded bg-primary text-white hover:opacity-90">
               Create Ticket
@@ -63,7 +52,9 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-      <TicketFilter onChange={setFilters} />
+      <div className="flex items-center gap-3">
+        <TicketFilter onChange={setFilters} />
+      </div>
       {loading ? (
         <div className="text-gray-500">Loading…</div>
       ) : (

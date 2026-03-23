@@ -6,6 +6,12 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import App from './App.jsx'
 import './styles/index.css'
 
+// apply saved theme preference before React renders
+const saved = localStorage.getItem('theme');
+if (saved === 'dark') {
+  document.documentElement.classList.add('dark');
+}
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

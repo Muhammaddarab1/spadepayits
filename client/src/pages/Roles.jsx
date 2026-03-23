@@ -4,18 +4,54 @@ import axios from '../api/axiosInstance.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const ALL_PERMS = [
+  // Troubleshooting module
+  'troubleshooting.viewMenu',
+  'tickets.viewAll',
   'tickets.create',
   'tickets.update',
   'tickets.delete',
   'tickets.viewDeleted',
-  'tickets.viewAll',
+  // Sales module
+  'sales.viewMenu',
+  'sales.create',
+  'sales.update',
+  'sales.delete',
+  'sales.viewAll',
+  // Admin & misc
   'reports.generate',
   'tags.manage',
   'users.manage',
   'roles.manage',
   'accounts.delete',
   'members.add',
+  'settings.manage',
 ];
+const GROUPS = {
+  'Troubleshooting': [
+    'troubleshooting.viewMenu',
+    'tickets.viewAll',
+    'tickets.create',
+    'tickets.update',
+    'tickets.delete',
+    'tickets.viewDeleted',
+  ],
+  'Sales': [
+    'sales.viewMenu',
+    'sales.create',
+    'sales.update',
+    'sales.delete',
+    'sales.viewAll',
+  ],
+  'Admin & Misc': [
+    'reports.generate',
+    'tags.manage',
+    'users.manage',
+    'roles.manage',
+    'accounts.delete',
+    'members.add',
+    'settings.manage',
+  ],
+};
 
 export default function Roles() {
   const { user } = useAuth();
@@ -65,7 +101,7 @@ export default function Roles() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold">Roles</h2>
-        <p className="text-sm text-gray-500">Create and manage role permissions. Grant “reports.generate” to delegate reporting.</p>
+        <p className="text-sm text-gray-500">Create and manage role permissions. Menu visibility is controlled via troubleshooting.viewMenu and sales.viewMenu.</p>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
       <form onSubmit={create} className="bg-white border rounded p-4 flex gap-3">
@@ -78,16 +114,23 @@ export default function Roles() {
           <div key={r._id} className="bg-white border rounded p-4">
             <div className="font-semibold">{r.name}</div>
             <div className="text-sm text-gray-500">{r.description}</div>
-            <div className="mt-3 grid md:grid-cols-3 gap-2">
-              {ALL_PERMS.map(p => (
-                <label key={p} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(r.permissions?.[p])}
-                    onChange={()=>togglePerm(r, p)}
-                  />
-                  <span>{p}</span>
-                </label>
+            <div className="mt-3 space-y-4">
+              {Object.entries(GROUPS).map(([group, perms]) => (
+                <div key={group}>
+                  <div className="text-sm font-medium mb-2">{group}</div>
+                  <div className="grid md:grid-cols-3 gap-2">
+                    {perms.map(p => (
+                      <label key={p} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(r.permissions?.[p])}
+                          onChange={()=>togglePerm(r, p)}
+                        />
+                        <span>{p}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

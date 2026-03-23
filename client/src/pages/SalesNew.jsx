@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from '../api/axiosInstance.js';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton.jsx';
+import MultiSelect from '../components/MultiSelect.jsx';
 
 export default function SalesNew() {
   const [users, setUsers] = useState([]);
@@ -75,28 +77,27 @@ export default function SalesNew() {
           <div><label className="block text-xs text-gray-500">Email</label><input type="email" name="email" value={form.email} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
           <div><label className="block text-xs text-gray-500">EIN or SSN</label><input name="einOrSsn" value={form.einOrSsn} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
         </div>
-        <div className="grid md:grid-cols-2 gap-3">
+          <div className="grid md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-500">Due Date/Time</label>
-            <input type="datetime-local" name="dueAt" value={form.dueAt} onChange={handle} className="border rounded px-2 py-1 w-full" required />
+            <label className="block text-xs text-gray-500">Due Date</label>
+            <input type="date" name="dueAt" value={form.dueAt} onChange={handle} className="border rounded px-2 py-1 w-full" required />
           </div>
           <div>
-            <div className="block text-xs text-gray-500 mb-1">Assignees</div>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-auto border rounded p-2">
-              {users.map(u => (
-                <label key={u._id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.assignees.includes(u._id)} onChange={()=>toggleAssignee(u._id)} />
-                  <span>{u.name}</span>
-                </label>
-              ))}
-            </div>
+            <label className="block text-xs text-gray-500">Assignees</label>
+            <MultiSelect
+              options={users.map(u => ({ value: u._id, label: u.name }))}
+              value={form.assignees}
+              onChange={(vals)=>setForm(f=>({ ...f, assignees: vals }))}
+              placeholder="Select assignees"
+              showFilter={false}
+            />
             <div className="text-xs text-gray-500 mt-1">{form.assignees.length} selected</div>
           </div>
         </div>
         <div><label className="block text-xs text-gray-500">Notes</label><textarea name="notes" value={form.notes} onChange={handle} className="border rounded px-2 py-1 w-full" rows="3" /></div>
         <div><label className="block text-xs text-gray-500">Attachments</label><input type="file" multiple onChange={(e)=>setFiles(Array.from(e.target.files))} className="border rounded px-2 py-1 w-full" /></div>
         <div className="flex justify-end gap-2">
-          <button onClick={()=>navigate('/sales')} type="button" className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">Cancel</button>
+          <BackButton to="/sales">Cancel</BackButton>
           <button disabled={submitting} className="px-3 py-1 rounded bg-primary text-white disabled:opacity-60">{submitting ? 'Creating…' : 'Create Sales Ticket'}</button>
         </div>
       </form>

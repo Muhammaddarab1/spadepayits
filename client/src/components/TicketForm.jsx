@@ -10,7 +10,7 @@ export default function TicketForm({ open, onClose, onCreated }) {
   const [form, setForm] = useState({
     subject: '',
     description: '',
-    assignee: '',
+    assignees: [],
     tags: [],
     priority: 'Medium',
     status: 'Open',
@@ -41,15 +41,11 @@ export default function TicketForm({ open, onClose, onCreated }) {
   }, [open]);
 
   useEffect(() => {
-    if (users.length && !form.assignee) setForm(f => ({ ...f, assignee: user?.id || users[0]._id }));
-  }, [users, user, form.assignee]);
+    if (users.length && (!form.assignees || form.assignees.length === 0)) setForm(f => ({ ...f, assignees: user?.id ? [user.id] : (users[0]?._id ? [users[0]._id] : []) }));
+  }, [users, user]);
 
   const handle = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-  const toggleTag = (name) => setForm(f => {
-    const next = new Set(f.tags);
-    if (next.has(name)) next.delete(name); else next.add(name);
-    return { ...f, tags: Array.from(next) };
-  });
+  const handleMulti = (name, values) => setForm(f => ({ ...f, [name]: values }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -59,7 +55,7 @@ export default function TicketForm({ open, onClose, onCreated }) {
       const payload = {
         subject: form.subject.trim(),
         description: form.description.trim(),
-        assignee: form.assignee,
+        assignees: form.assignees,
         tags: form.tags,
         priority: form.priority,
         status: form.status,
@@ -69,7 +65,7 @@ export default function TicketForm({ open, onClose, onCreated }) {
         contactPerson: form.contactPerson.trim(),
         notes: form.notes.trim(),
       };
-      if (!payload.subject || !payload.description || !payload.assignee || !payload.tags.length) {
+      if (!payload.subject || !payload.description || !Array.isArray(payload.assignees) || payload.assignees.length === 0 || !payload.tags.length) {
         setError('All fields are required'); setSubmitting(false); return;
       }
       const created = await axios.post('/api/tickets', payload);
@@ -80,7 +76,7 @@ export default function TicketForm({ open, onClose, onCreated }) {
       }
       onCreated?.();
       onClose?.();
-      setForm({ subject: '', description: '', assignee: '', tags: [], priority: 'Medium', status: 'Open', mid: '', dba: '', contactNumber: '', contactPerson: '', notes: '' });
+      setForm({ subject: '', description: '', assignees: [], tags: [], priority: 'Medium', status: 'Open', mid: '', dba: '', contactNumber: '', contactPerson: '', notes: '' });
       setFiles([]);
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to create ticket');
@@ -105,9 +101,11 @@ export default function TicketForm({ open, onClose, onCreated }) {
               <input name="subject" value={form.subject} onChange={handle} className="border rounded px-2 py-1 w-full" required />
             </div>
             <div>
-              <label className="block text-xs text-gray-500">Assignee</label>
-              <select name="assignee" value={form.assignee} onChange={handle} className="border rounded px-2 py-1 w-full" required>
-                <option value="">Select</option>
+              <label className="block text-xs text-gray-500">Assignees</label>
+              <select name="assignees" value={form.assignees} onChange={(e)=>{
+                const opts = Array.from(e.target.selectedOptions).map(o=>o.value);
+                handleMulti('assignees', opts);
+              }} multiple className="border rounded px-2 py-1 w-full h-28" required>
                 {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
               </select>
             </div>
@@ -138,15 +136,13 @@ export default function TicketForm({ open, onClose, onCreated }) {
           </div>
           <div className="grid md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
-              <div className="block text-xs text-gray-500 mb-1">Tags</div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {tagsCatalog.map(t => (
-                  <label key={t._id} className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={form.tags.includes(t.name)} onChange={()=>toggleTag(t.name)} />
-                    <span>{t.name}</span>
-                  </label>
-                ))}
-              </div>
+              <label className="block text-xs text-gray-500">Tags</label>
+              <select name="tags" value={form.tags} onChange={(e)=>{
+                const opts = Array.from(e.target.selectedOptions).map(o=>o.value);
+                handleMulti('tags', opts);
+              }} multiple className="border rounded px-2 py-1 w-full h-28">
+                {tagsCatalog.map(t => <option key={t._id} value={t.name}>{t.name}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-gray-500">Priority</label>

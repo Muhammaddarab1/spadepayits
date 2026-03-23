@@ -17,11 +17,13 @@ import activityLogRoutes from './routes/activityLogs.js';
 import User from './models/User.js';
 import Role from './models/Role.js';
 import crypto from 'crypto';
-import attendanceRoutes from './routes/attendance.js';
 import rolesRoutes from './routes/roles.js';
 import reportsRoutes from './routes/reports.js';
 import tagsRoutes from './routes/tags.js';
 import salesRoutes from './routes/sales.js';
+import settingsRoutes from './routes/settings.js';
+import syncRoutes from './routes/sync.js';
+import { startReminderService } from './utils/reminderService.js';
 
 const app = express();
 
@@ -73,11 +75,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/activityLogs', activityLogRoutes);
-app.use('/api/attendance', attendanceRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/tags', tagsRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/sync', syncRoutes);
 
 // Global error handler (minimal)
 app.use((err, _req, res, _next) => {
@@ -124,7 +127,10 @@ const seedRoles = async () => {
         'tickets.viewDeleted': true,
         'tickets.viewAll': true,
         'reports.generate': true,
+        'settings.manage': true,
         'tags.manage': true,
+        'troubleshooting.viewMenu': true,
+        'sales.viewMenu': true,
         'sales.create': true,
         'sales.update': true,
         'sales.delete': true,
@@ -142,15 +148,13 @@ const seedRoles = async () => {
         'tickets.viewAll': true,
         'tickets.create': true,
         'tickets.update': true,
-        'sales.create': true,
-        'sales.update': true,
+        'troubleshooting.viewMenu': true,
       },
       description: 'Baseline role with no implicit permissions',
     },
     {
       name: 'HR',
       permissions: {
-        'attendance.report': true,
         'roles.manage': true, // editable if Admin allows
       },
       description: 'Human Resources',
@@ -167,16 +171,16 @@ const seedRoles = async () => {
       permissions: {
         'tickets.create': true,
         'tickets.viewAll': true,
-        'sales.create': true,
-        'sales.update': true,
+        'troubleshooting.viewMenu': true,
       },
       description: 'Support agent',
     },
     {
       name: 'Sales',
       permissions: {
-        'tickets.create': true,
-        'attendance.record': true,
+        'sales.create': true,
+        'sales.update': true,
+        'sales.viewMenu': true,
       },
       description: 'Sales team',
     },
@@ -184,7 +188,6 @@ const seedRoles = async () => {
       name: 'Finance',
       permissions: {
         'tickets.create': true,
-        'attendance.record': true,
       },
       description: 'Finance team',
     },
@@ -219,6 +222,7 @@ const start = async () => {
   }
   await seedRoles();
   await seedAdmin();
+  startReminderService();
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 };
 

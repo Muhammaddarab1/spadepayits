@@ -15,13 +15,7 @@ export const AuthProvider = ({ children }) => {
   });
   const navigate = useNavigate();
 
-  // Restore auth token from localStorage on mount
-  useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    }
-  }, []);
+ 
 
   useEffect(() => {
     if (user) localStorage.setItem('user', JSON.stringify(user));
@@ -45,30 +39,18 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const res = await axios.post('/api/auth/login', { email, password });
-    // store token received from backend
-    if (res.data.token) {
-      localStorage.setItem('authToken', res.data.token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
-    }
     setUser(res.data.user);
     if (res.data.user?.mustChangePassword) navigate('/change-password');
     else navigate('/');
   };
 
-  const setAuthState = (newToken, newUser) => {
-    if (newToken) {
-      localStorage.setItem('authToken', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-    }
+  const setAuthState = (_newToken, newUser) => {
     setUser(newUser);
   };
 
   const logout = () => {
     try { axios.post('/api/auth/logout').catch(()=>{}); } catch {}
-    // Clear all auth data
-    localStorage.removeItem('authToken');
     localStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
     navigate('/login');
   };

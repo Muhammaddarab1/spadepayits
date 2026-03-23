@@ -1,14 +1,15 @@
-// Attendance schema to track login, break, and logout events
 import mongoose from 'mongoose';
 
 const attendanceSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    action: { type: String, enum: ['login', 'break_start', 'break_end', 'logout'], required: true },
-    timestamp: { type: Date, default: Date.now, required: true, index: true },
-    note: { type: String, default: '' },
+    clockInAt: { type: Date, required: true },
+    clockOutAt: { type: Date, default: null },
+    date: { type: String, required: true, index: true },
   },
-  { timestamps: false }
+  { timestamps: true }
 );
+
+attendanceSchema.index({ user: 1, date: 1 }, { unique: true });
 
 export default mongoose.model('Attendance', attendanceSchema);

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from '../api/axiosInstance.js';
 import { useParams, useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton.jsx';
+import MultiSelect from '../components/MultiSelect.jsx';
 
 export default function TicketEdit() {
   const { id } = useParams();
@@ -11,6 +13,9 @@ export default function TicketEdit() {
   const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [commentsList, setCommentsList] = useState([]);
+  const [timeline, setTimeline] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -25,6 +30,12 @@ export default function TicketEdit() {
         setTicket(t.data);
         setUsers(u.data);
         setTagsCatalog(g.data);
+        setCommentsList(t.data.comments || []);
+        // fetch activity logs for timeline
+        try {
+          const logs = await axios.get('/api/activityLogs', { params: { ticket: id } });
+          setTimeline(logs.data || []);
+        } catch {}
       } catch (e) {
         setError(e.response?.data?.message || 'Failed to load ticket');
       }
@@ -70,31 +81,26 @@ export default function TicketEdit() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Edit Ticket</h2>
-          <p className="text-sm text-gray-500">Ticket ID: {id}</p>
+          <p className="text-sm text-gray-500">Ticket Number: {ticket.ticketNumber || id}</p>
         </div>
-        <button onClick={()=>navigate('/troubleshooting')} className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">Back</button>
+        <BackButton to="/troubleshooting" />
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
       <form onSubmit={save} className="bg-white border rounded p-4 space-y-3">
-        <div className="grid md:grid-cols-2 gap-3">
+          <div className="grid md:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-gray-500">Subject</label>
             <input value={ticket.subject} onChange={(e)=>setField('subject', e.target.value)} className="border rounded px-2 py-1 w-full" required />
           </div>
           <div>
-            <div className="block text-xs text-gray-500 mb-1">Assignees</div>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-auto border rounded p-2">
-              {users.map(u => (
-                <label key={u._id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={(ticket.assignees || []).includes(u._id) || (ticket.assignee?._id === u._id) || (ticket.assignee === u._id)}
-                    onChange={()=>toggleAssignee(u._id)}
-                  />
-                  <span>{u.name}</span>
-                </label>
-              ))}
-            </div>
+            <label className="block text-xs text-gray-500">Assignees</label>
+            <MultiSelect
+              options={users.map(u => ({ value: u._id, label: u.name }))}
+              value={(ticket.assignees || []).map(a=>a._id || a)}
+              onChange={(vals)=>setField('assignees', vals)}
+              placeholder="Select assignees"
+              showFilter={false}
+            />
             <div className="text-xs text-gray-500 mt-1">{(ticket.assignees || (ticket.assignee ? [ticket.assignee] : [])).length} selected</div>
           </div>
         </div>
@@ -110,21 +116,20 @@ export default function TicketEdit() {
           <label className="block text-xs text-gray-500">Description</label>
           <textarea value={ticket.description} onChange={(e)=>setField('description', e.target.value)} className="border rounded px-2 py-1 w-full" rows="4" required />
         </div>
-        <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid md:grid-cols-3 gap-3">
           <div className="md:col-span-2">
-            <div className="block text-xs text-gray-500 mb-1">Tags</div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {tagsCatalog.map(t => (
-                <label key={t._id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={ticket.tags?.includes(t.name)} onChange={()=>toggleTag(t.name)} />
-                  <span>{t.name}</span>
-                </label>
-              ))}
-            </div>
+            <label className="block text-xs text-gray-500">Tags</label>
+            <MultiSelect
+              options={tagsCatalog.map(t => ({ value: t.name, label: t.name }))}
+              value={ticket.tags || []}
+              onChange={(vals)=>setField('tags', vals)}
+              placeholder="Select tags"
+              showFilter={false}
+            />
           </div>
           <div>
-            <label className="block text-xs text-gray-500">Due Date/Time</label>
-            <input type="datetime-local" value={ticket.dueAt ? ticket.dueAt.slice(0,16) : ''} onChange={(e)=>setField('dueAt', e.target.value)} className="border rounded px-2 py-1 w-full" />
+            <label className="block text-xs text-gray-500">Due Date</label>
+            <input type="date" value={ticket.dueAt ? ticket.dueAt.slice(0,10) : ''} onChange={(e)=>setField('dueAt', e.target.value)} className="border rounded px-2 py-1 w-full" />
           </div>
           <div>
             <label className="block text-xs text-gray-500">Priority</label>
@@ -147,13 +152,78 @@ export default function TicketEdit() {
         {Array.isArray(ticket.attachments) && ticket.attachments.length > 0 && (
           <div>
             <div className="text-xs text-gray-500 mb-1">Existing Attachments</div>
-            <ul className="text-sm space-y-1">
-              {ticket.attachments.map((a,i)=>(
-                <li key={i}><a className="text-blue-600 hover:underline" href={a.url} target="_blank" rel="noreferrer">{a.filename}</a></li>
-              ))}
-            </ul>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {ticket.attachments.map((a, i) => {
+                const fname = (a.url || '').split('/').pop();
+                const downloadUrl = a.url ? a.url.replace('/uploads/', `/api/tickets/${id}/attachments/`) : '';
+                const isImage = a.mimetype?.startsWith?.('image/');
+                const isPdf = a.mimetype === 'application/pdf' || (a.filename || '').toLowerCase().endsWith('.pdf');
+                return (
+                  <div key={i} className="border rounded p-2 flex items-center gap-3">
+                    <div className="w-20 h-20 flex items-center justify-center bg-gray-50 overflow-hidden rounded">
+                      {isImage ? (
+                        <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.filename} className="object-contain h-full w-full"/></a>
+                      ) : isPdf ? (
+                        <a href={a.url} target="_blank" rel="noreferrer" className="text-sm text-gray-600">View PDF</a>
+                      ) : (
+                        <span className="text-sm text-gray-500">{a.filename}</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">{a.filename}</div>
+                        <div className="text-xs text-gray-400">{Math.round((a.size||0)/1024)} KB</div>
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <a href={a.url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-sm">Open</a>
+                        <a href={downloadUrl} target="_blank" rel="noreferrer" download className="px-2 py-1 rounded bg-blue-600 text-white text-sm">Download</a>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
+        <div>
+          <div className="text-xs text-gray-500 mb-1">Comments</div>
+          <div className="space-y-3">
+            {commentsList.map((c, i) => (
+              <div key={i} className="border rounded p-2">
+                <div className="text-sm">{c.text}</div>
+                <div className="text-xs text-gray-400">{new Date(c.createdAt).toLocaleString()}</div>
+              </div>
+            ))}
+            <div className="mt-2">
+              <textarea value={commentText} onChange={(e)=>setCommentText(e.target.value)} className="w-full border rounded px-2 py-1" rows={3} />
+              <div className="flex justify-end mt-2">
+                <button onClick={async ()=>{
+                  if (!commentText.trim()) return;
+                  try {
+                    const res = await axios.post(`/api/tickets/${id}/comments`, { text: commentText });
+                    setCommentsList(l => [...l, res.data]);
+                    setCommentText('');
+                  } catch (e) {
+                    // ignore
+                  }
+                }} className="px-3 py-1 rounded bg-primary text-white">Post Comment</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs text-gray-500 mb-1">Timeline</div>
+          <div className="space-y-2 text-sm text-gray-600">
+            {timeline.map((l, i) => (
+              <div key={i} className="border rounded p-2">
+                <div className="font-medium">{l.action}</div>
+                <div className="text-xs">{l.details}</div>
+                <div className="text-xs text-gray-400">{new Date(l.timestamp).toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        </div>
         <div className="flex justify-end gap-2">
           <button onClick={()=>navigate('/')} type="button" className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">Back</button>
           <button disabled={saving} className="px-3 py-1 rounded bg-primary text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save Changes'}</button>

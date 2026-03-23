@@ -2,6 +2,7 @@
 import Ticket from '../models/Ticket.js';
 import ActivityLog from '../models/ActivityLog.js';
 import User from '../models/User.js';
+import { sendTicketAssignmentEmail, sendTicketStatusChangeEmail, sendBulkEmail } from '../utils/emailService.js';
 import { requirePermission } from '../middleware/permission.js';
 
 const logActivity = async ({ action, user, ticket, details }) => {
@@ -22,11 +23,24 @@ export const createTicket = async (req, res) => {
     const resolvedAssignees = Array.isArray(assignees) && assignees.length ? assignees : [assignee];
     const users = await User.find({ _id: { $in: resolvedAssignees } }).select('_id');
     if (users.length !== resolvedAssignees.length) return res.status(404).json({ message: 'One or more assignees not found' });
+    // Generate unique 6-digit ticket number
+    const genSix = async () => {
+      for (let i = 0; i < 6; i++) {
+        const n = Math.floor(100000 + Math.random() * 900000).toString();
+        const exists = await Ticket.findOne({ ticketNumber: n });
+        if (!exists) return n;
+      }
+      // fallback to timestamp-derived value
+      return (Date.now() % 1000000).toString().padStart(6, '0');
+    };
+    const ticketNumber = await genSix();
+
     const ticket = await Ticket.create({
       subject,
       description,
       assignee: resolvedAssignees[0],
       assignees: resolvedAssignees,
+      ticketNumber,
       createdBy: req.user.id,
       tags,
       priority,
@@ -44,20 +58,76 @@ export const createTicket = async (req, res) => {
       ticket: ticket._id,
       details: `Ticket created by ${req.user.name}`,
     });
+    // Notify assignees via email (best-effort, non-blocking)
+    (async () => {
+      try {
+        const recipients = await User.find({ _id: { $in: resolvedAssignees } }).select('email name');
+        for (const recipient of recipients) {
+          sendTicketAssignmentEmail(ticket, recipient).catch(() => {});
+        }
+      } catch {}
+    })();
     return res.status(201).json(ticket);
   } catch {
     return res.status(500).json({ message: 'Failed to create ticket' });
   }
 };
 
+export const addComment = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ message: 'Comment text required' });
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    const comment = { text: text.trim(), author: req.user.id, createdAt: new Date() };
+    ticket.comments = [...(ticket.comments || []), comment];
+    await ticket.save();
+    await logActivity({ action: 'COMMENT_ADDED', user: req.user.id, ticket: ticket._id, details: `Comment added` });
+    // notify ticket participants about comment
+    (async () => {
+      try {
+        const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
+        const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
+        const recipients = users.map(u => u.email).filter(Boolean);
+        if (recipients.length) {
+          await sendBulkEmail(recipients, `💬 New comment on ${ticket.ticketNumber}`, `
+            <div style="font-family:Arial,sans-serif;padding:20px;background:#F8FAFC">
+              <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:20px">
+                <h3 style="color:#0F172A;margin-top:0">${req.user.name} commented on ticket ${ticket.ticketNumber}</h3>
+                <p style="color:#0F172A;margin:8px 0">${comment.text}</p>
+              </div>
+            </div>
+          `);
+        }
+      } catch {}
+    })();
+    return res.status(201).json(comment);
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to add comment' });
+  }
+};
+
 export const listTickets = async (req, res) => {
   try {
-    const { assignee, assignees, status, priority, tags } = req.query;
+    // Sales role cannot access troubleshooting tickets
+    if (req.user.role === 'Sales') return res.status(403).json({ message: 'Forbidden' });
+    const { assignee, assignees, status, priority, tags, search } = req.query;
     const query = {};
     const ids = [];
     if (assignee) ids.push(assignee);
     if (assignees) assignees.split(',').forEach((i) => ids.push(i.trim()));
-    if (ids.length) query.$or = [{ assignee: { $in: ids } }, { assignees: { $in: ids } }];
+    
+    const orConditions = [];
+    if (search) {
+      const pattern = new RegExp(search, 'i');
+      orConditions.push({ subject: pattern }, { ticketNumber: pattern });
+    }
+    if (ids.length) {
+      orConditions.push({ assignee: { $in: ids } }, { assignees: { $in: ids } });
+    }
+    if (orConditions.length) {
+      query.$or = orConditions;
+    }
     if (status) query.status = status;
     if (priority) query.priority = priority;
     if (tags) query.tags = { $in: tags.split(',').map((t) => t.trim()) };
@@ -113,6 +183,11 @@ export const updateTicket = async (req, res) => {
     if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
     const isAdmin = req.user.role === 'Admin';
     if (ticket.isDeleted && !isAdmin) return res.status(400).json({ message: 'Cannot modify deleted ticket' });
+    
+    // Track old assignee and status for notifications
+    const oldAssignees = ticket.assignees?.map(String) || [];
+    const oldStatus = ticket.status;
+    
     Object.assign(ticket, updates);
     await ticket.save();
     await logActivity({
@@ -121,6 +196,48 @@ export const updateTicket = async (req, res) => {
       ticket: ticket._id,
       details: `Ticket updated by ${req.user.name}`,
     });
+    
+    // Notify on assignment changes (non-blocking)
+    (async () => {
+      try {
+        // Check if assignee changed
+        const newAssignees = ticket.assignees?.map(String) || [];
+        const addedAssignees = newAssignees.filter(id => !oldAssignees.includes(id));
+        
+        if (addedAssignees.length > 0) {
+          const newUsers = await User.find({ _id: { $in: addedAssignees } }).select('email name');
+          for (const user of newUsers) {
+            sendTicketAssignmentEmail(ticket, user).catch(() => {});
+          }
+        }
+        
+        // Check if status changed
+        if (oldStatus !== ticket.status) {
+          const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
+          const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
+          for (const user of users) {
+            sendTicketStatusChangeEmail(ticket, user, oldStatus).catch(() => {});
+          }
+        }
+        // General update notification to participants (best-effort)
+        {
+          const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
+          const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
+          const recipients = users.map(u => u.email).filter(Boolean);
+          if (recipients.length) {
+            await sendBulkEmail(recipients, `✏️ Ticket Updated: ${ticket.ticketNumber}`, `
+              <div style="font-family:Arial,sans-serif;padding:20px;background:#F8FAFC">
+                <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:20px">
+                  <h3 style="color:#0F172A;margin-top:0">Ticket ${ticket.ticketNumber} was updated</h3>
+                  <p style="color:#0F172A;margin:8px 0">Subject: ${ticket.subject}</p>
+                  <p style="color:#0F172A;margin:8px 0">Status: ${ticket.status}</p>
+                </div>
+              </div>
+            `);
+          }
+        }
+      } catch {}
+    })();
     return res.json(ticket);
   } catch {
     return res.status(500).json({ message: 'Failed to update ticket' });
@@ -143,6 +260,16 @@ export const updateStatus = async (req, res) => {
       ticket: ticket._id,
       details: `Status changed to ${status}`,
     });
+    // Email participants on status change
+    (async () => {
+      try {
+        const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
+        const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
+        for (const user of users) {
+          sendTicketStatusChangeEmail(ticket, user, null).catch(() => {});
+        }
+      } catch {}
+    })();
     return res.json(ticket);
   } catch {
     return res.status(500).json({ message: 'Failed to update status' });

@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { auth } from '../middleware/auth.js';
 import { passwordGuard } from '../middleware/passwordGuard.js';
-import { createTicket, listTickets, getTicket, updateTicket, updateStatus, deleteTicket } from '../controllers/ticketController.js';
+import { createTicket, listTickets, getTicket, updateTicket, updateStatus, deleteTicket, addComment } from '../controllers/ticketController.js';
 import { requirePermission } from '../middleware/permission.js';
 import multer from 'multer';
 import path from 'path';
@@ -16,6 +16,7 @@ router.post('/', auth, passwordGuard, requirePermission('tickets.create'), creat
 router.get('/:id', auth, passwordGuard, getTicket);
 router.put('/:id', auth, passwordGuard, updateTicket);
 router.patch('/:id/status', auth, passwordGuard, updateStatus);
+router.post('/:id/comments', auth, passwordGuard, addComment);
 router.delete('/:id', auth, passwordGuard, requirePermission('tickets.delete'), deleteTicket);
 
 // File attachments
@@ -33,7 +34,7 @@ router.post('/:id/attachments', auth, passwordGuard, upload.array('files', 5), a
     if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
     const items = (req.files || []).map((f) => ({
       filename: f.originalname,
-      url: `/uploads/${path.basename(f.path)}`,
+      url: `${req.protocol}://${req.get('host')}/uploads/${path.basename(f.path)}`,
       mimetype: f.mimetype,
       size: f.size,
       uploadedBy: req.user.id,
@@ -43,6 +44,23 @@ router.post('/:id/attachments', auth, passwordGuard, upload.array('files', 5), a
     return res.status(201).json({ attachments: items });
   } catch {
     return res.status(500).json({ message: 'Failed to upload attachments' });
+  }
+});
+
+// Secure download for an attachment (ensures file belongs to ticket)
+router.get('/:id/attachments/:file', auth, passwordGuard, async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    const fname = req.params.file;
+    const attachment = (ticket.attachments || []).find(a => a.url && a.url.endsWith(`/${fname}`));
+    if (!attachment) return res.status(404).json({ message: 'Attachment not found for this ticket' });
+    const filePath = path.join(process.cwd(), 'uploads', fname);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ message: 'File not found on server' });
+    return res.download(filePath, attachment.filename);
+  } catch (err) {
+    console.error('Download error', err);
+    return res.status(500).json({ message: 'Failed to download attachment' });
   }
 });
 

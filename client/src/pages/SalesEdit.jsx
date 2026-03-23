@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import axios from '../api/axiosInstance.js';
 import { useNavigate, useParams } from 'react-router-dom';
+import BackButton from '../components/BackButton.jsx';
+import MultiSelect from '../components/MultiSelect.jsx';
 
 export default function SalesEdit() {
   const { id } = useParams();
@@ -55,7 +57,7 @@ export default function SalesEdit() {
           <h2 className="text-xl font-semibold">Edit Sales Ticket</h2>
           <p className="text-sm text-gray-500">ID: {id}</p>
         </div>
-        <button onClick={()=>navigate('/sales')} className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">Back</button>
+        <BackButton to="/sales" />
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
       <form onSubmit={save} className="bg-white border rounded p-4 space-y-3">
@@ -76,21 +78,19 @@ export default function SalesEdit() {
           <div><label className="block text-xs text-gray-500">EIN or SSN</label><input value={item.einOrSsn} onChange={(e)=>setField('einOrSsn', e.target.value)} className="border rounded px-2 py-1 w-full" required /></div>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
-          <div><label className="block text-xs text-gray-500">Due Date/Time</label><input type="datetime-local" value={item.dueAt ? item.dueAt.slice(0,16) : ''} onChange={(e)=>setField('dueAt', e.target.value)} className="border rounded px-2 py-1 w-full" required /></div>
           <div>
-            <div className="block text-xs text-gray-500 mb-1">Assignees</div>
-            <div className="grid grid-cols-2 gap-2 max-h-32 overflow-auto border rounded p-2">
-              {users.map(u => (
-                <label key={u._id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={(item.assignees || []).includes(u._id) || (item.assignee?._id === u._id) || (item.assignee === u._id)}
-                    onChange={()=>toggleAssignee(u._id)}
-                  />
-                  <span>{u.name}</span>
-                </label>
-              ))}
-            </div>
+            <label className="block text-xs text-gray-500">Due Date</label>
+            <input type="date" value={item.dueAt ? item.dueAt.slice(0,10) : ''} onChange={(e)=>setField('dueAt', e.target.value)} className="border rounded px-2 py-1 w-full" required />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500">Assignees</label>
+            <MultiSelect
+              options={users.map(u => ({ value: u._id, label: u.name }))}
+              value={(item.assignees || []).map(a=>a._id || a)}
+              onChange={(vals)=>setField('assignees', vals)}
+              placeholder="Select assignees"
+              showFilter={false}
+            />
             <div className="text-xs text-gray-500 mt-1">{(item.assignees || (item.assignee ? [item.assignee] : [])).length} selected</div>
           </div>
         </div>

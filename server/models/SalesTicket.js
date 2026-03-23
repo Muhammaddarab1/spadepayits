@@ -27,6 +27,8 @@ const salesTicketSchema = new mongoose.Schema(
         uploadedAt: { type: Date, default: Date.now },
       },
     ],
+    reminder24Sent: { type: Boolean, default: false },
+    deadlineSent: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

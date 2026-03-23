@@ -37,10 +37,13 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt:', { email, passwordLength: password?.length });
     if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
     const user = await User.findOne({ email }).select('+password');
+    console.log('User found:', !!user);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
     const ok = await user.matchPassword(password);
+    console.log('Password match result:', ok);
     if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
     const roleDoc = user.role === 'Admin' ? null : await Role.findOne({ name: user.role });
     const basePerms = user.role === 'Admin' ? { admin: true } : roleDoc?.permissions || {};
@@ -52,7 +55,8 @@ export const login = async (req, res) => {
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
     return res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role, permissions, mustChangePassword: user.mustChangePassword } });
-  } catch {
+  } catch (e) {
+    console.error('Login error:', e);
     return res.status(500).json({ message: 'Login failed' });
   }
 };

@@ -9,6 +9,7 @@ const ticketSchema = new mongoose.Schema(
     assignees: { type: [mongoose.Schema.Types.ObjectId], ref: 'User', default: [], index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     tags: { type: [String], required: true, default: [], index: true },
+    ticketNumber: { type: String, index: true, unique: true, sparse: true },
     priority: { type: String, enum: ['Low', 'Medium', 'High'], required: true },
     status: { type: String, enum: ['Open', 'In Progress', 'Solved'], required: true, default: 'Open' },
     dueAt: { type: Date, index: true },
@@ -27,6 +28,15 @@ const ticketSchema = new mongoose.Schema(
         uploadedAt: { type: Date, default: Date.now },
       },
     ],
+    comments: [
+      {
+        text: String,
+        author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    reminder24Sent: { type: Boolean, default: false },
+    deadlineSent: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
