@@ -10,11 +10,11 @@ body {
   @apply bg-bgSoft text-slateText antialiased;
 }
 .badge {
-  @apply px-2 py-0.5 rounded text-xs font-medium;
+  @apply px-2 py-0.5 rounded text-xs font-bold;
 }
-.badge-open { @apply bg-green-50 text-success; }
-.badge-inprogress { @apply bg-blue-50 text-progress; }
-.badge-solved { @apply bg-green-50 text-success; }
-.priority-low { @apply text-success; }
-.priority-medium { @apply text-warning; }
-.priority-high { @apply text-danger; }
+.badge-open { @apply bg-blue-100 text-primary; }
+.badge-inprogress { @apply bg-yellow-100 text-warning; }
+.badge-solved { @apply bg-green-100 text-success; }
+.priority-low { @apply text-success font-medium; }
+.priority-medium { @apply text-warning font-medium; }
+.priority-high { @apply text-danger font-bold; }

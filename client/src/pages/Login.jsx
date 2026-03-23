@@ -1,6 +1,5 @@
 // Login page for existing users
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import background from '../assets/backround.png';
   
@@ -47,9 +46,9 @@ export default function Login() {
         <h2 className="text-xl font-semibold text-center">Login</h2>
         {error && <div className="text-sm text-red-200 bg-red-600/40 border border-red-300/40 rounded px-3 py-2 text-center">{error}</div>}
         <div>
-          <label className="block text-xs text-white/80">Email</label>
+          <label className="block text-xs text-white/80">Username</label>
           <input
-            type="email"
+            type="text"
             value={email}
             onChange={(e)=>setEmail(e.target.value)}
             className="mt-1 w-full h-11 rounded px-3 py-2 border border-white/60 bg-white/10 text-white placeholder-white/80 focus:outline-none focus:ring-2 focus:ring-white/70"
@@ -72,11 +71,6 @@ export default function Login() {
         >
           {loading ? 'Signing in…' : 'Login'}
         </button>
-        <div className="text-sm text-right">
-          <Link to="/forgot-password" className="text-white/90 underline decoration-white/50 hover:decoration-white">
-            Forgot password?
-          </Link>
-        </div>
       </form>
     </div>
   );

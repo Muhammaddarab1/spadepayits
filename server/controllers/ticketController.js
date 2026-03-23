@@ -2,7 +2,7 @@
 import Ticket from '../models/Ticket.js';
 import ActivityLog from '../models/ActivityLog.js';
 import User from '../models/User.js';
-import { sendTicketAssignmentEmail, sendTicketStatusChangeEmail, sendBulkEmail } from '../utils/emailService.js';
+import { createInternalNotification } from './notificationController.js';
 import { requirePermission } from '../middleware/permission.js';
 
 const logActivity = async ({ action, user, ticket, details }) => {
@@ -58,12 +58,19 @@ export const createTicket = async (req, res) => {
       ticket: ticket._id,
       details: `Ticket created by ${req.user.name}`,
     });
-    // Notify assignees via email (best-effort, non-blocking)
+    // Notify assignees via in-app notification
     (async () => {
       try {
-        const recipients = await User.find({ _id: { $in: resolvedAssignees } }).select('email name');
+        const recipients = await User.find({ _id: { $in: resolvedAssignees } }).select('name');
         for (const recipient of recipients) {
-          sendTicketAssignmentEmail(ticket, recipient).catch(() => {});
+          await createInternalNotification({
+            recipient: recipient._id,
+            sender: req.user.id,
+            title: '🎟️ New Ticket Assigned',
+            message: `You have been assigned a new ticket: ${ticket.subject}`,
+            link: `/tickets/${ticket._id}`,
+            type: 'Assignment'
+          });
         }
       } catch {}
     })();
@@ -87,17 +94,17 @@ export const addComment = async (req, res) => {
     (async () => {
       try {
         const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
-        const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
-        const recipients = users.map(u => u.email).filter(Boolean);
-        if (recipients.length) {
-          await sendBulkEmail(recipients, `💬 New comment on ${ticket.ticketNumber}`, `
-            <div style="font-family:Arial,sans-serif;padding:20px;background:#F8FAFC">
-              <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:20px">
-                <h3 style="color:#0F172A;margin-top:0">${req.user.name} commented on ticket ${ticket.ticketNumber}</h3>
-                <p style="color:#0F172A;margin:8px 0">${comment.text}</p>
-              </div>
-            </div>
-          `);
+        // Don't notify the person who added the comment
+        ids.delete(req.user.id);
+        for (const recipientId of ids) {
+          await createInternalNotification({
+            recipient: recipientId,
+            sender: req.user.id,
+            title: `💬 New Comment: ${ticket.ticketNumber}`,
+            message: `${req.user.name} added a comment: "${comment.text.substring(0, 50)}${comment.text.length > 50 ? '...' : ''}"`,
+            link: `/tickets/${ticket._id}`,
+            type: 'Comment'
+          });
         }
       } catch {}
     })();
@@ -197,43 +204,50 @@ export const updateTicket = async (req, res) => {
       details: `Ticket updated by ${req.user.name}`,
     });
     
-    // Notify on assignment changes (non-blocking)
+    // Notify on changes via in-app notification
     (async () => {
       try {
-        // Check if assignee changed
         const newAssignees = ticket.assignees?.map(String) || [];
         const addedAssignees = newAssignees.filter(id => !oldAssignees.includes(id));
         
-        if (addedAssignees.length > 0) {
-          const newUsers = await User.find({ _id: { $in: addedAssignees } }).select('email name');
-          for (const user of newUsers) {
-            sendTicketAssignmentEmail(ticket, user).catch(() => {});
-          }
+        // Notify new assignees
+        for (const userId of addedAssignees) {
+          await createInternalNotification({
+            recipient: userId,
+            sender: req.user.id,
+            title: '🎟️ Ticket Assigned',
+            message: `You have been assigned to ticket #${ticket.ticketNumber}`,
+            link: `/tickets/${ticket._id}`,
+            type: 'Assignment'
+          });
         }
         
-        // Check if status changed
+        // Notify all participants about status change or general update
+        const participants = new Set([...newAssignees, ticket.createdBy?.toString()].filter(Boolean));
+        participants.delete(req.user.id);
+
         if (oldStatus !== ticket.status) {
-          const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
-          const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
-          for (const user of users) {
-            sendTicketStatusChangeEmail(ticket, user, oldStatus).catch(() => {});
+          for (const userId of participants) {
+            await createInternalNotification({
+              recipient: userId,
+              sender: req.user.id,
+              title: '🔄 Status Changed',
+              message: `Ticket #${ticket.ticketNumber} status changed: ${oldStatus} → ${ticket.status}`,
+              link: `/tickets/${ticket._id}`,
+              type: 'StatusChange'
+            });
           }
-        }
-        // General update notification to participants (best-effort)
-        {
-          const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
-          const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
-          const recipients = users.map(u => u.email).filter(Boolean);
-          if (recipients.length) {
-            await sendBulkEmail(recipients, `✏️ Ticket Updated: ${ticket.ticketNumber}`, `
-              <div style="font-family:Arial,sans-serif;padding:20px;background:#F8FAFC">
-                <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:20px">
-                  <h3 style="color:#0F172A;margin-top:0">Ticket ${ticket.ticketNumber} was updated</h3>
-                  <p style="color:#0F172A;margin:8px 0">Subject: ${ticket.subject}</p>
-                  <p style="color:#0F172A;margin:8px 0">Status: ${ticket.status}</p>
-                </div>
-              </div>
-            `);
+        } else if (addedAssignees.length === 0) {
+          // General update notification if status didn't change and no new assignees
+          for (const userId of participants) {
+            await createInternalNotification({
+              recipient: userId,
+              sender: req.user.id,
+              title: '✏️ Ticket Updated',
+              message: `Ticket #${ticket.ticketNumber} was updated by ${req.user.name}`,
+              link: `/tickets/${ticket._id}`,
+              type: 'System'
+            });
           }
         }
       } catch {}
@@ -260,13 +274,20 @@ export const updateStatus = async (req, res) => {
       ticket: ticket._id,
       details: `Status changed to ${status}`,
     });
-    // Email participants on status change
+    // In-app notification on status change
     (async () => {
       try {
         const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
-        const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
-        for (const user of users) {
-          sendTicketStatusChangeEmail(ticket, user, null).catch(() => {});
+        ids.delete(req.user.id);
+        for (const recipientId of ids) {
+          await createInternalNotification({
+            recipient: recipientId,
+            sender: req.user.id,
+            title: '🔄 Status Updated',
+            message: `Ticket #${ticket.ticketNumber} is now ${status}`,
+            link: `/tickets/${ticket._id}`,
+            type: 'StatusChange'
+          });
         }
       } catch {}
     })();

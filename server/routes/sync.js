@@ -7,7 +7,6 @@ import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permission.js';
 import { validateMicrosoftConfig } from '../utils/microsoftGraph.js';
 import { syncUsersFromMicrosoft, getSyncStats, syncUserByEmail } from '../utils/userSync.js';
-import { testEmailConfiguration } from '../utils/emailService.js';
 
 const router = Router();
 
@@ -87,24 +86,6 @@ router.post('/user-by-email', auth, requirePermission('users.manage'), async (re
     });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to sync user: ' + error.message });
-  }
-});
-
-/**
- * GET /api/sync/test-email
- * Test email configuration
- * Admin only
- */
-router.get('/test-email', auth, requirePermission('users.manage'), async (_req, res) => {
-  try {
-    const result = await testEmailConfiguration();
-
-    return res.json(result);
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to test email: ' + error.message,
-    });
   }
 });
 

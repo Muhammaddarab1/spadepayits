@@ -30,9 +30,8 @@ export const updateMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    const { name, email } = req.body;
+    const { name } = req.body;
     if (name !== undefined) user.name = name;
-    if (email !== undefined) user.email = email;
     // avatar handled via multer file upload
     if (req.file) {
       const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;

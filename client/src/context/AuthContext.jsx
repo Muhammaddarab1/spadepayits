@@ -39,18 +39,21 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const res = await axios.post('/api/auth/login', { email, password });
+    if (res.data.token) localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
     if (res.data.user?.mustChangePassword) navigate('/change-password');
     else navigate('/');
   };
 
-  const setAuthState = (_newToken, newUser) => {
+  const setAuthState = (newToken, newUser) => {
+    if (newToken) localStorage.setItem('token', newToken);
     setUser(newUser);
   };
 
   const logout = () => {
     try { axios.post('/api/auth/logout').catch(()=>{}); } catch {}
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
     setUser(null);
     navigate('/login');
   };

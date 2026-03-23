@@ -5,13 +5,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#2563EB',
-        success: '#22C55E',
-        warning: '#F59E0B',
-        danger: '#EF4444',
-        progress: '#3B82F6',
-        slateText: '#0F172A',
-        bgSoft: '#F8FAFC',
+        primary: '#1E40AF', // Deep Blue
+        success: '#10B981', // Emerald Green
+        warning: '#F59E0B', // Amber/Yellow
+        danger: '#EF4444', // Red
+        progress: '#3B82F6', // Bright Blue
+        slateText: '#1E293B', // Dark Slate
+        bgSoft: '#F1F5F9', // Light Gray
       },
     },
   },

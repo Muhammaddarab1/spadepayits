@@ -1,26 +1,22 @@
 import Ticket from '../models/Ticket.js';
 import SalesTicket from '../models/SalesTicket.js';
 import User from '../models/User.js';
-import { sendBulkEmail } from './emailService.js';
+import { createInternalNotification } from '../controllers/notificationController.js';
 
 const nowUtc = () => new Date();
 
-const sendToParticipants = async (ticket, subject, html) => {
+const notifyParticipants = async (ticket, title, message, type) => {
   const ids = new Set([...(ticket.assignees || []).map(String), ticket.createdBy?.toString()].filter(Boolean));
-  const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
-  const recipients = users.map(u => u.email).filter(Boolean);
-  if (recipients.length) await sendBulkEmail(recipients, subject, html);
-};
-
-const renderHtml = (title, lines) => {
-  return `
-    <div style="font-family:Arial,sans-serif;padding:20px;background:#F8FAFC">
-      <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;padding:20px">
-        <h2 style="color:#0F172A;margin-top:0">${title}</h2>
-        ${lines.map(l => `<p style="color:#0F172A;margin:8px 0">${l}</p>`).join('')}
-      </div>
-    </div>
-  `;
+  const link = `/tickets/${ticket._id}`; // Base link, though sales uses different paths, this is fine for now
+  for (const id of ids) {
+    await createInternalNotification({
+      recipient: id,
+      title,
+      message,
+      link,
+      type
+    });
+  }
 };
 
 export const startReminderService = () => {
@@ -33,42 +29,24 @@ export const startReminderService = () => {
       for (const t of tickets) {
         if (!t.dueAt) continue;
         if (!t.reminder24Sent && t.dueAt <= in24h && t.dueAt > now) {
-          await sendToParticipants(t, `⏰ 24h Reminder: Ticket ${t.ticketNumber}`, renderHtml('24-hour Reminder', [
-            `Ticket #${t.ticketNumber} (${t.subject}) is due within 24 hours.`,
-            `Due at: ${new Date(t.dueAt).toLocaleString()}`,
-          ]));
+          await notifyParticipants(t, '⏰ 24h Reminder', `Ticket #${t.ticketNumber} (${t.subject}) is due within 24 hours.`, 'Reminder');
           t.reminder24Sent = true; await t.save();
         }
         if (!t.deadlineSent && t.dueAt <= now) {
-          await sendToParticipants(t, `⚠️ Deadline Reached: Ticket ${t.ticketNumber}`, renderHtml('Turnaround Deadline Reached', [
-            `Ticket #${t.ticketNumber} (${t.subject}) is past its due time.`,
-            `Due at: ${new Date(t.dueAt).toLocaleString()}`,
-          ]));
+          await notifyParticipants(t, '⚠️ Deadline Reached', `Ticket #${t.ticketNumber} (${t.subject}) is past its due time.`, 'Deadline');
           t.deadlineSent = true; await t.save();
         }
       }
       // Sales tickets
-      const sales = await SalesTicket.find({ dueAt: { $ne: null }, status: { $ne: 'Solved' } }).select('_id dueAt assignees createdBy reminder24Sent deadlineSent');
+      const sales = await SalesTicket.find({ dueAt: { $ne: null }, status: { $ne: 'Solved' } }).select('_id businessName dueAt assignees createdBy reminder24Sent deadlineSent');
       for (const s of sales) {
         if (!s.dueAt) continue;
         if (!s.reminder24Sent && s.dueAt <= in24h && s.dueAt > now) {
-          const ids = new Set([...(s.assignees || []).map(String), s.createdBy?.toString()].filter(Boolean));
-          const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
-          const recipients = users.map(u => u.email).filter(Boolean);
-          if (recipients.length) await sendBulkEmail(recipients, '⏰ 24h Reminder: Sales Ticket', renderHtml('24-hour Reminder', [
-            `A sales ticket is due within 24 hours.`,
-            `Due at: ${new Date(s.dueAt).toLocaleString()}`,
-          ]));
+          await notifyParticipants(s, '⏰ 24h Reminder', `Sales Ticket (${s.businessName}) is due within 24 hours.`, 'Reminder');
           s.reminder24Sent = true; await s.save();
         }
         if (!s.deadlineSent && s.dueAt <= now) {
-          const ids = new Set([...(s.assignees || []).map(String), s.createdBy?.toString()].filter(Boolean));
-          const users = await User.find({ _id: { $in: Array.from(ids) } }).select('email');
-          const recipients = users.map(u => u.email).filter(Boolean);
-          if (recipients.length) await sendBulkEmail(recipients, '⚠️ Deadline Reached: Sales Ticket', renderHtml('Turnaround Deadline Reached', [
-            `A sales ticket is past its due time.`,
-            `Due at: ${new Date(s.dueAt).toLocaleString()}`,
-          ]));
+          await notifyParticipants(s, '⚠️ Deadline Reached', `Sales Ticket (${s.businessName}) is past its due time.`, 'Deadline');
           s.deadlineSent = true; await s.save();
         }
       }

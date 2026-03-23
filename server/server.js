@@ -23,6 +23,8 @@ import tagsRoutes from './routes/tags.js';
 import salesRoutes from './routes/sales.js';
 import settingsRoutes from './routes/settings.js';
 import syncRoutes from './routes/sync.js';
+import notificationRoutes from './routes/notifications.js';
+import customerRoutes from './routes/customers.js';
 import { startReminderService } from './utils/reminderService.js';
 
 const app = express();
@@ -71,6 +73,7 @@ app.get('/', (_req, res) => {
 });
 
 // API routes
+app.use('/api/sync', syncRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tickets', ticketRoutes);
@@ -80,7 +83,8 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/tags', tagsRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/settings', settingsRoutes);
-app.use('/api/sync', syncRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/customers', customerRoutes);
 
 // Global error handler (minimal)
 app.use((err, _req, res, _next) => {
@@ -152,48 +156,9 @@ const seedRoles = async () => {
       },
       description: 'Baseline role with no implicit permissions',
     },
-    {
-      name: 'HR',
-      permissions: {
-        'roles.manage': true, // editable if Admin allows
-      },
-      description: 'Human Resources',
-    },
-    {
-      name: 'Operational',
-      permissions: {
-        'members.add': true,
-      },
-      description: 'Operational team',
-    },
-    {
-      name: 'Agent',
-      permissions: {
-        'tickets.create': true,
-        'tickets.viewAll': true,
-        'troubleshooting.viewMenu': true,
-      },
-      description: 'Support agent',
-    },
-    {
-      name: 'Sales',
-      permissions: {
-        'sales.create': true,
-        'sales.update': true,
-        'sales.viewMenu': true,
-      },
-      description: 'Sales team',
-    },
-    {
-      name: 'Finance',
-      permissions: {
-        'tickets.create': true,
-      },
-      description: 'Finance team',
-    },
   ];
   for (const r of defaultRoles) {
-    await Role.updateOne({ name: r.name }, { $setOnInsert: r }, { upsert: true });
+    await Role.updateOne({ name: r.name }, { $set: r }, { upsert: true });
   }
 };
 

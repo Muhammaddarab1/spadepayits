@@ -12,7 +12,7 @@ export const auth = (req, res, next) => {
       const pairs = req.headers.cookie.split(';');
       for (const p of pairs) {
         const [k, v] = p.trim().split('=');
-        if (k === 'token') {
+        if (k.toLowerCase() === 'token') {
           token = decodeURIComponent(v || '');
           break;
         }
@@ -23,6 +23,8 @@ export const auth = (req, res, next) => {
   // debug log for token source
   if (process.env.NODE_ENV !== 'production') {
     console.log('auth middleware token:', token ? token.slice(0, 10) + '...' : 'none');
+    console.log('auth middleware cookies:', req.headers.cookie || 'none');
+    console.log('auth middleware auth header:', req.headers.authorization || 'none');
   }
   
   if (!token) {

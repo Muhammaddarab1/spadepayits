@@ -15,9 +15,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const canSeeSales =
     isAdmin ||
-    user?.permissions?.['sales.viewAll'] ||
-    user?.permissions?.['sales.create'] ||
-    user?.permissions?.['sales.update'];
+    user?.permissions?.['sales.viewMenu'];
   const canSeeTroubleshooting =
     isAdmin || user?.permissions?.['troubleshooting.viewMenu'];
   const canSeeReports = isAdmin || user?.permissions?.['reports.generate'];
@@ -34,38 +32,41 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className={`${collapsed ? 'w-16' : 'w-60'} border-r bg-white hidden md:flex flex-col transition-all`}>
-      <div className={`h-14 flex items-center px-3 border-b font-semibold ${collapsed ? 'justify-center' : ''}`}>
+    <aside className={`${collapsed ? 'w-16' : 'w-60'} border-r bg-bgSoft hidden md:flex flex-col transition-all`}>
+      <div className={`h-14 flex items-center px-3 border-b bg-white font-semibold ${collapsed ? 'justify-center' : ''}`}>
         <NavLink to="/" className="flex items-center gap-2">
           <img src={logo} alt="logo" className="h-8 w-8 object-contain" />
-          {!collapsed && <span className="text-sm">Spade Pay</span>}
+          {!collapsed && <span className="text-primary font-bold">Spade Pay</span>}
         </NavLink>
-        <button onClick={toggle} className="ml-auto text-gray-500 hover:text-gray-700 px-2">
+        <button onClick={toggle} className="ml-auto text-gray-500 hover:text-primary px-2">
           {collapsed ? '▶' : '◀'}
         </button>
       </div>
       <nav className="p-4 space-y-2">
-        <NavLink to="/" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}>
+        <NavLink to="/" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
           {!collapsed ? 'Dashboard' : 'DB'}
         </NavLink>
         {canSeeTroubleshooting && (
-          <NavLink to="/troubleshooting" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}>
+          <NavLink to="/troubleshooting" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
             {!collapsed ? 'Troubleshooting' : 'TS'}
           </NavLink>
         )}
         {canSeeSales && (
-          <NavLink to="/sales" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}>
+          <NavLink to="/sales" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
             {!collapsed ? 'Sales' : 'SL'}
           </NavLink>
         )}
         {canSeeReports && (
-          <NavLink to="/reports" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}>
+          <NavLink to="/reports" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
             {!collapsed ? 'Reports' : 'RP'}
           </NavLink>
         )}
+        <NavLink to="/customers" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
+          {!collapsed ? 'Customers' : 'CU'}
+        </NavLink>
         {isAdmin && (
           <>
-            <NavLink to="/users" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}>
+            <NavLink to="/users" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
               {!collapsed ? 'Users' : 'U'}
             </NavLink>
           </>

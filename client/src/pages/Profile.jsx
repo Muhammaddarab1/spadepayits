@@ -27,7 +27,6 @@ export default function Profile() {
     try {
       const fd = new FormData();
       fd.append('name', form.name);
-      fd.append('email', form.email);
       if (avatarFile) fd.append('avatar', avatarFile);
       const res = await axios.patch('/api/users/me', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setMsg('Profile updated');
@@ -64,8 +63,8 @@ export default function Profile() {
           <input value={form.name} onChange={(e)=>setForm(f=>({ ...f, name: e.target.value }))} className="border rounded px-2 py-1 w-full" />
         </div>
         <div>
-          <label className="block text-xs text-gray-500">Email</label>
-          <input value={form.email} onChange={(e)=>setForm(f=>({ ...f, email: e.target.value }))} className="border rounded px-2 py-1 w-full" />
+          <label className="block text-xs text-gray-500">Username</label>
+          <input value={form.email} readOnly className="border rounded px-2 py-1 w-full bg-gray-50 text-gray-500 cursor-not-allowed" />
         </div>
         <div>
           <label className="block text-xs text-gray-500">Profile Image</label>

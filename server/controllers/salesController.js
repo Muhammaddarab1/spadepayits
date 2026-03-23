@@ -1,7 +1,7 @@
 import SalesTicket from '../models/SalesTicket.js';
 import User from '../models/User.js';
 import path from 'path';
-import { sendEmail } from '../utils/sendEmail.js';
+import { createInternalNotification } from './notificationController.js';
 
 export const createSales = async (req, res) => {
   try {
@@ -21,12 +21,19 @@ export const createSales = async (req, res) => {
       contactPersonName, contactNumber, email, einOrSsn,
       turnaroundTime, dueAt: dueAt || null, assignee: resolvedAssignees[0], assignees: resolvedAssignees, createdBy: req.user.id, notes,
     });
-    // notify assignees (best-effort)
+    // notify assignees via in-app notification
     (async () => {
       try {
-        const recipients = await User.find({ _id: { $in: resolvedAssignees } }).select('email');
-        const to = recipients.map(r => r.email).join(',');
-        if (to) sendEmail({ to, subject: `New Sales Ticket: ${doc._id}`, html: `<p>Sales ticket created</p>` }).catch(()=>{});
+        for (const assigneeId of resolvedAssignees) {
+          await createInternalNotification({
+            recipient: assigneeId,
+            sender: req.user.id,
+            title: '🎟️ New Sales Ticket Assigned',
+            message: `You have been assigned to a new sales ticket for ${businessName}`,
+            link: `/sales/${doc._id}`,
+            type: 'Assignment'
+          });
+        }
       } catch {}
     })();
     return res.status(201).json(doc);
@@ -73,6 +80,10 @@ export const updateSales = async (req, res) => {
     const item = await SalesTicket.findById(req.params.id);
     if (!item) return res.status(404).json({ message: 'Not found' });
     // Permission to update is enforced by route middleware
+    // Track for notifications
+    const oldAssignees = item.assignees?.map(String) || [];
+    const oldStatus = item.status;
+
     if (Array.isArray(updates.assignees) && updates.assignees.length) {
       item.assignees = updates.assignees;
       item.assignee = updates.assignees[0];
@@ -92,6 +103,42 @@ export const updateSales = async (req, res) => {
     if (updates.turnaroundTime !== undefined) item.turnaroundTime = updates.turnaroundTime;
     if (updates.notes !== undefined) item.notes = updates.notes;
     await item.save();
+
+    // Notify on changes
+    (async () => {
+      try {
+        const newAssignees = item.assignees?.map(String) || [];
+        const addedAssignees = newAssignees.filter(id => !oldAssignees.includes(id));
+        
+        // Notify new assignees
+        for (const userId of addedAssignees) {
+          await createInternalNotification({
+            recipient: userId,
+            sender: req.user.id,
+            title: '🎟️ Sales Ticket Assigned',
+            message: `You have been assigned to sales ticket for ${item.businessName}`,
+            link: `/sales/${item._id}`,
+            type: 'Assignment'
+          });
+        }
+        
+        // Notify all participants about status change
+        if (oldStatus !== item.status) {
+          const participants = new Set([...newAssignees, item.createdBy?.toString()].filter(Boolean));
+          participants.delete(req.user.id);
+          for (const userId of participants) {
+            await createInternalNotification({
+              recipient: userId,
+              sender: req.user.id,
+              title: '🔄 Sales Status Changed',
+              message: `Sales ticket for ${item.businessName} status changed: ${oldStatus} → ${item.status}`,
+              link: `/sales/${item._id}`,
+              type: 'StatusChange'
+            });
+          }
+        }
+      } catch {}
+    })();
     return res.json(item);
   } catch {
     return res.status(500).json({ message: 'Failed to update sales ticket' });

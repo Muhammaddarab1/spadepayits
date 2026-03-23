@@ -8,12 +8,11 @@ import { useAuth } from '../context/AuthContext.jsx';
  * Admin-only page to:
  * - Create new users (role fixed to 'User')
  * - Manage per-user permissions via a grouped, module-based editor
- * - Sync users from Microsoft 365
  */
 export default function Users() {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'User' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'User', department: 'Troubleshooting' });
   const [error, setError] = useState('');
   const [permEdit, setPermEdit] = useState({ open: false, userId: null, map: {} });
 
@@ -33,8 +32,29 @@ export default function Users() {
   const create = async (e) => {
     e.preventDefault(); setError('');
     try {
-      await axios.post('/api/users', { name: form.name, email: form.email, password: form.password, role: form.role });
-      setForm({ name: '', email: '', password: '', role: 'User' });
+      const initialPerms = {};
+      if (form.department === 'Troubleshooting' || form.department === 'Both') {
+        initialPerms['tickets.viewAll'] = true;
+        initialPerms['tickets.create'] = true;
+        initialPerms['tickets.update'] = true;
+        initialPerms['troubleshooting.viewMenu'] = true;
+      }
+      if (form.department === 'Sales' || form.department === 'Both') {
+        initialPerms['sales.viewMenu'] = true;
+        initialPerms['sales.create'] = true;
+        initialPerms['sales.update'] = true;
+        initialPerms['sales.viewAll'] = true;
+      }
+
+      await axios.post('/api/users', {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        role: form.role,
+        department: form.department,
+        permissions: initialPerms
+      });
+      setForm({ name: '', email: '', password: '', role: 'User', department: 'Troubleshooting' });
       load();
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to create user');
@@ -83,14 +103,18 @@ export default function Users() {
         <p className="text-sm text-gray-500">Create users as User or Admin, then assign fine-grained permissions.</p>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
-      <MicrosoftSyncPanel onReload={load} />
-      <form onSubmit={create} className="bg-white border rounded p-4 grid md:grid-cols-5 gap-2">
+      <form onSubmit={create} className="bg-white border rounded p-4 grid md:grid-cols-6 gap-2">
         <input className="border rounded px-2 py-1" placeholder="Name" value={form.name} onChange={(e)=>setForm({...form, name: e.target.value})} required />
         <input type="email" className="border rounded px-2 py-1" placeholder="Email" value={form.email} onChange={(e)=>setForm({...form, email: e.target.value})} required />
         <input type="password" className="border rounded px-2 py-1" placeholder="Password" value={form.password} onChange={(e)=>setForm({...form, password: e.target.value})} required />
         <select className="border rounded px-2 py-1" value={form.role} onChange={(e)=>setForm({...form, role: e.target.value})}>
-          <option>User</option>
-          <option>Admin</option>
+          <option value="User">User</option>
+          <option value="Admin">Admin</option>
+        </select>
+        <select className="border rounded px-2 py-1" value={form.department} onChange={(e)=>setForm({...form, department: e.target.value})}>
+          <option value="Troubleshooting">Troubleshooting</option>
+          <option value="Sales">Sales</option>
+          <option value="Both">Both</option>
         </select>
         <button className="px-3 py-1 rounded bg-primary text-white">Create</button>
       </form>
@@ -261,123 +285,6 @@ function PermissionGroups({ keys, values, onToggle }) {
           )}
         </div>
       ))}
-    </div>
-  );
-}
-
-/**
- * MicrosoftSyncPanel
- * Admin panel for syncing users from Microsoft 365
- */
-function MicrosoftSyncPanel({ onReload }) {
-  const [loading, setLoading] = useState(false);
-  const [syncStats, setSyncStats] = useState(null);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  const loadStatus = async () => {
-    try {
-      const res = await axios.get('/api/sync/status');
-      setSyncStats(res.data.syncStats);
-      if (!res.data.microsoftConfigured) {
-        setError(res.data.microsoftMessage);
-      }
-    } catch (e) {
-      setError('Failed to load sync status');
-    }
-  };
-
-  const handleSync = async () => {
-    setLoading(true);
-    setMessage('');
-    setError('');
-    try {
-      const res = await axios.post('/api/sync/users');
-      setMessage(`✓ ${res.data.message}`);
-      setSyncStats(res.data.summary);
-      onReload();
-    } catch (e) {
-      setError(e.response?.data?.message || 'Sync failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const testEmail = async () => {
-    setLoading(true);
-    setMessage('');
-    setError('');
-    try {
-      const res = await axios.get('/api/sync/test-email');
-      if (res.data.success) {
-        setMessage('✓ Email configuration is working!');
-      } else {
-        setError('Email test failed: ' + res.data.message);
-      }
-    } catch (e) {
-      setError('Email test failed: ' + e.response?.data?.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadStatus();
-  }, []);
-
-  return (
-    <div className="bg-blue-50 border border-blue-200 rounded p-4 space-y-3">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="font-semibold text-blue-900">🔄 Microsoft 365 Integration</div>
-          <div className="text-sm text-blue-700">Sync users from your Microsoft 365 tenant and send email notifications</div>
-        </div>
-      </div>
-
-      {error && <div className="text-sm text-red-700 bg-red-50 px-3 py-2 rounded">{error}</div>}
-      {message && <div className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded">{message}</div>}
-
-      {syncStats && (
-        <div className="grid md:grid-cols-4 gap-3 text-sm">
-          <div className="bg-white rounded p-3 border">
-            <div className="text-gray-600">Total Users</div>
-            <div className="text-xl font-bold">{syncStats.totalUsers}</div>
-          </div>
-          <div className="bg-white rounded p-3 border">
-            <div className="text-gray-600">Synced from Microsoft</div>
-            <div className="text-xl font-bold">{syncStats.syncedUsers}</div>
-          </div>
-          <div className="bg-white rounded p-3 border">
-            <div className="text-gray-600">Not Synced</div>
-            <div className="text-xl font-bold">{syncStats.unsyncedUsers}</div>
-          </div>
-          <div className="bg-white rounded p-3 border">
-            <div className="text-gray-600">Sync %</div>
-            <div className="text-xl font-bold">{syncStats.syncPercentage}%</div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={handleSync}
-          disabled={loading}
-          className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? '⏳ Syncing...' : '📥 Sync All Users from Microsoft'}
-        </button>
-        <button
-          onClick={testEmail}
-          disabled={loading}
-          className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-        >
-          {loading ? '⏳ Testing...' : '✉️ Test Email Configuration'}
-        </button>
-      </div>
-
-      <div className="text-xs text-blue-600 bg-blue-100 px-3 py-2 rounded">
-        💡 <strong>Tip:</strong> Configure environment variables AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET to enable Microsoft 365 sync.
-      </div>
     </div>
   );
 }
