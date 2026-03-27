@@ -116,8 +116,8 @@ export const addComment = async (req, res) => {
 
 export const listTickets = async (req, res) => {
   try {
-    // Sales role cannot access troubleshooting tickets
-    if (req.user.role === 'Sales') return res.status(403).json({ message: 'Forbidden' });
+    const canTs = req.user.role === 'Admin' || req.user.permissions?.['troubleshooting.viewMenu'];
+    if (!canTs) return res.status(403).json({ message: 'Forbidden' });
     const { assignee, assignees, status, priority, tags, search } = req.query;
     const query = {};
     const ids = [];

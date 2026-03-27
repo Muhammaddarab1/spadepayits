@@ -44,10 +44,14 @@ export const createSales = async (req, res) => {
 
 export const listSales = async (req, res) => {
   try {
-    // Only Sales and Admin may view all sales tickets
-    if (req.user.role !== 'Admin' && req.user.role !== 'Sales') return res.status(403).json({ message: 'Forbidden' });
+    const canSales = req.user.role === 'Admin' || req.user.permissions?.['sales.viewMenu'];
+    if (!canSales) return res.status(403).json({ message: 'Forbidden' });
     const filter = {};
     if (req.user.role !== 'Admin') filter.isDeleted = false;
+    // Further filter for non-admins if they don't have viewAll
+    if (req.user.role !== 'Admin' && !req.user.permissions?.['sales.viewAll']) {
+      filter.$or = [{ assignee: req.user.id }, { assignees: req.user.id }, { createdBy: req.user.id }];
+    }
     const items = await SalesTicket.find(filter)
       .populate('assignee', 'name email role')
       .populate('assignees', 'name email role')

@@ -13,14 +13,23 @@ export default function HomeDashboard() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [t, s, n] = await Promise.all([
-        axios.get('/api/tickets'),
-        axios.get('/api/sales'),
-        axios.get('/api/notifications'),
-      ]);
-      setTickets(t.data || []);
-      setSales(s.data || []);
-      setNotifications(n.data || []);
+      const fetchT = axios.get('/api/tickets').then(r => r.data).catch(e => {
+        if (e.response?.status !== 403) console.error('Failed to fetch tickets:', e);
+        return [];
+      });
+      const fetchS = axios.get('/api/sales').then(r => r.data).catch(e => {
+        if (e.response?.status !== 403) console.error('Failed to fetch sales:', e);
+        return [];
+      });
+      const fetchN = axios.get('/api/notifications').then(r => r.data).catch(e => {
+        console.error('Failed to fetch notifications:', e);
+        return [];
+      });
+
+      const [t, s, n] = await Promise.all([fetchT, fetchS, fetchN]);
+      setTickets(t || []);
+      setSales(s || []);
+      setNotifications(n || []);
     } finally { setLoading(false); }
   }, []);
 

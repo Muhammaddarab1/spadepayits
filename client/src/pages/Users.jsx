@@ -94,6 +94,49 @@ export default function Users() {
     }
   };
 
+  const updateRole = async (id, newRole) => {
+    try {
+      await axios.patch(`/api/users/${id}/role`, { role: newRole });
+      load();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to update role');
+    }
+  };
+
+  const updateDepartment = async (u, dept) => {
+    try {
+      const newPerms = { ...(u.permissions || {}) };
+      
+      // Clear existing visibility permissions to ensure a clean slate for the new selection
+      delete newPerms['troubleshooting.viewMenu'];
+      delete newPerms['tickets.viewAll'];
+      delete newPerms['tickets.create'];
+      delete newPerms['tickets.update'];
+      delete newPerms['sales.viewMenu'];
+      delete newPerms['sales.viewAll'];
+      delete newPerms['sales.create'];
+      delete newPerms['sales.update'];
+
+      if (dept === 'Troubleshooting' || dept === 'Both') {
+        newPerms['tickets.viewAll'] = true;
+        newPerms['tickets.create'] = true;
+        newPerms['tickets.update'] = true;
+        newPerms['troubleshooting.viewMenu'] = true;
+      }
+      if (dept === 'Sales' || dept === 'Both') {
+        newPerms['sales.viewMenu'] = true;
+        newPerms['sales.create'] = true;
+        newPerms['sales.update'] = true;
+        newPerms['sales.viewAll'] = true;
+      }
+
+      await axios.patch(`/api/users/${u._id}/permissions`, { permissions: newPerms });
+      load();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to update department');
+    }
+  };
+
   if (!isAdmin) return <div className="text-sm text-gray-600">Only Admin can manage users.</div>;
 
   return (
@@ -125,29 +168,54 @@ export default function Users() {
               <th className="text-left px-3 py-2">Name</th>
               <th className="text-left px-3 py-2">Email</th>
               <th className="text-left px-3 py-2">Role</th>
+              <th className="text-left px-3 py-2">Department</th>
               <th className="text-left px-3 py-2">Status</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
-              <tr key={u._id} className="border-t">
-                <td className="px-3 py-2">{u.name}</td>
-                <td className="px-3 py-2">{u.email}</td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-1 rounded bg-gray-100 text-xs">{u.role}</span>
-                    <button onClick={()=>openPerms(u)} className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Permissions</button>
-                  </div>
-                </td>
-                <td className="px-3 py-2">{u.deleted ? 'Closed' : 'Active'}</td>
-                <td className="px-3 py-2 text-right">
-                  {!u.deleted && (
-                    <button onClick={()=>closeAccount(u._id)} className="px-3 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100">Close</button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {users.map(u => {
+              const hasTs = u.permissions?.['troubleshooting.viewMenu'];
+              const hasSales = u.permissions?.['sales.viewMenu'];
+              const currentDept = (hasTs && hasSales) ? 'Both' : hasSales ? 'Sales' : 'Troubleshooting';
+
+              return (
+                <tr key={u._id} className="border-t">
+                  <td className="px-3 py-2">{u.name}</td>
+                  <td className="px-3 py-2">{u.email}</td>
+                  <td className="px-3 py-2">
+                    <select 
+                      value={u.role} 
+                      onChange={(e) => updateRole(u._id, e.target.value)}
+                      className="px-2 py-1 rounded bg-gray-100 text-xs border-none outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="User">User</option>
+                      <option value="Admin">Admin</option>
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <select 
+                        value={currentDept} 
+                        onChange={(e) => updateDepartment(u, e.target.value)}
+                        className="px-2 py-1 rounded bg-gray-100 text-xs border-none outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="Troubleshooting">Troubleshooting</option>
+                        <option value="Sales">Sales</option>
+                        <option value="Both">Both</option>
+                      </select>
+                      <button onClick={()=>openPerms(u)} className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs font-medium transition-colors">Permissions</button>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">{u.deleted ? 'Closed' : 'Active'}</td>
+                  <td className="px-3 py-2 text-right">
+                    {!u.deleted && (
+                      <button onClick={()=>closeAccount(u._id)} className="px-3 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100">Close</button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
