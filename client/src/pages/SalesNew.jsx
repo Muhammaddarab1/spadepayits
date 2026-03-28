@@ -41,7 +41,12 @@ export default function SalesNew() {
   const submit = async (e) => {
     e.preventDefault(); setError(''); setSubmitting(true);
     try {
-      const created = await axios.post('/api/sales', form);
+      // Add turnaroundTime fallback if not provided by form
+      const payload = { 
+        ...form, 
+        turnaroundTime: form.turnaroundTime || '24h' 
+      };
+      const created = await axios.post('/api/sales', payload);
       if (files.length) {
         const fd = new FormData(); for (const f of files) fd.append('files', f);
         await axios.post(`/api/sales/${created.data._id}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -57,33 +62,33 @@ export default function SalesNew() {
     <div className="max-w-4xl mx-auto space-y-4">
       <div>
         <h2 className="text-xl font-semibold">New Sales Ticket</h2>
-        <p className="text-sm text-gray-500">Capture business and contact details.</p>
+        <p className="text-sm text-gray-500">Capture business and contact details. Fields marked with <span className="text-red-500">*</span> are required.</p>
       </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      <form onSubmit={submit} className="bg-white border rounded p-4 space-y-3">
+      {error && <div className="text-sm text-red-600 font-medium bg-red-50 p-2 rounded border border-red-100">{error}</div>}
+      <form onSubmit={submit} className="bg-white border rounded p-4 space-y-3 shadow-sm">
         <div className="grid md:grid-cols-2 gap-3">
-          <div><label className="block text-xs text-gray-500">Business Name</label><input name="businessName" value={form.businessName} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
-          <div><label className="block text-xs text-gray-500">Address</label><input name="address" value={form.address} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">Business Name <span className="text-red-500">*</span></label><input name="businessName" value={form.businessName} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">Address <span className="text-red-500">*</span></label><input name="address" value={form.address} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required /></div>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
-          <div><label className="block text-xs text-gray-500">Owner Name</label><input name="ownerName" value={form.ownerName} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
-          <div><label className="block text-xs text-gray-500">Tax File Name</label><input name="taxFileName" value={form.taxFileName} onChange={handle} className="border rounded px-2 py-1 w-full" /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">Owner Name <span className="text-red-500">*</span></label><input name="ownerName" value={form.ownerName} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">Tax File Name</label><input name="taxFileName" value={form.taxFileName} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" /></div>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
-          <div><label className="block text-xs text-gray-500">Contact Person</label><input name="contactPersonName" value={form.contactPersonName} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
-          <div><label className="block text-xs text-gray-500">Contact Number</label><input name="contactNumber" value={form.contactNumber} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">Contact Person <span className="text-red-500">*</span></label><input name="contactPersonName" value={form.contactPersonName} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">Contact Number <span className="text-red-500">*</span></label><input name="contactNumber" value={form.contactNumber} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required /></div>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
-          <div><label className="block text-xs text-gray-500">Email</label><input type="email" name="email" value={form.email} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
-          <div><label className="block text-xs text-gray-500">EIN or SSN</label><input name="einOrSsn" value={form.einOrSsn} onChange={handle} className="border rounded px-2 py-1 w-full" required /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">Email <span className="text-red-500">*</span></label><input type="email" name="email" value={form.email} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required /></div>
+          <div><label className="block text-xs text-gray-500 font-medium">EIN or SSN <span className="text-red-500">*</span></label><input name="einOrSsn" value={form.einOrSsn} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required /></div>
         </div>
           <div className="grid md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-500">Due Date</label>
-            <input type="date" name="dueAt" value={form.dueAt} onChange={handle} className="border rounded px-2 py-1 w-full" required />
+            <label className="block text-xs text-gray-500 font-medium">Due Date <span className="text-red-500">*</span></label>
+            <input type="date" name="dueAt" value={form.dueAt} onChange={handle} className="border rounded px-2 py-1 w-full focus:ring-1 focus:ring-primary outline-none" required />
           </div>
           <div>
-            <label className="block text-xs text-gray-500">Assignees</label>
+            <label className="block text-xs text-gray-500 font-medium">Assignees <span className="text-red-500">*</span></label>
             <MultiSelect
               options={users.map(u => ({ value: u._id, label: u.name }))}
               value={form.assignees}

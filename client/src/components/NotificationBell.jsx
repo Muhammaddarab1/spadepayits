@@ -43,6 +43,15 @@ export default function NotificationBell() {
     }
   };
 
+  const deleteNotification = async (id) => {
+    try {
+      await axios.delete(`/api/notifications/${id}`);
+      setNotifications(notifications.filter(n => n._id !== id));
+    } catch (error) {
+      console.error('Failed to delete notification');
+    }
+  };
+
   const markAllRead = async () => {
     try {
       await axios.post('/api/notifications/read-all');
@@ -96,36 +105,45 @@ export default function NotificationBell() {
                 >
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium text-gray-900 truncate ${!n.isRead ? 'font-bold' : ''}`}>
-                        {n.title}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
+                      <div className="flex items-center gap-2">
+                        <p className={`text-sm font-medium text-gray-900 truncate ${!n.isRead ? 'font-bold' : ''}`}>
+                          {n.title}
+                        </p>
+                        {!n.isRead && <div className="h-2 w-2 rounded-full bg-primary flex-shrink-0" />}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">
                         {n.message}
                       </p>
-                      {n.link && (
-                        <Link
-                          to={n.link}
-                          onClick={() => {
-                            markRead(n._id);
-                            setOpen(false);
-                          }}
-                          className="text-[10px] text-primary hover:underline mt-1 inline-block"
+                      <div className="flex items-center gap-3 mt-2">
+                        {n.link && (
+                          <Link
+                            to={n.link}
+                            onClick={() => { markRead(n._id); setOpen(false); }}
+                            className="text-[10px] text-primary hover:underline font-bold"
+                          >
+                            VIEW
+                          </Link>
+                        )}
+                        {!n.isRead && (
+                          <button
+                            onClick={() => markRead(n._id)}
+                            className="text-[10px] text-green-600 hover:text-green-700 font-bold"
+                          >
+                            READ
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteNotification(n._id)}
+                          className="text-[10px] text-red-500 hover:text-red-600 font-bold"
                         >
-                          View details
-                        </Link>
-                      )}
+                          REMOVE
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {new Date(n.createdAt).toLocaleString()}
+                      </p>
                     </div>
-                    {!n.isRead && (
-                      <button
-                        onClick={() => markRead(n._id)}
-                        className="h-2 w-2 rounded-full bg-primary mt-1.5 flex-shrink-0"
-                        title="Mark as read"
-                      />
-                    )}
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    {new Date(n.createdAt).toLocaleString()}
-                  </p>
                 </div>
               ))
             )}

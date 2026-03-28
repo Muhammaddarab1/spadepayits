@@ -58,10 +58,18 @@ export default function TicketEdit() {
     e.preventDefault(); setError(''); setSaving(true);
     try {
       await axios.put(`/api/tickets/${id}`, {
-        subject: ticket.subject, description: ticket.description,
-        assignees: Array.isArray(ticket.assignees) && ticket.assignees.length ? ticket.assignees : (ticket.assignee ? [ticket.assignee?._id || ticket.assignee] : []),
-        tags: ticket.tags, priority: ticket.priority, status: ticket.status, dueAt: ticket.dueAt || null,
-        mid: ticket.mid, dba: ticket.dba, contactNumber: ticket.contactNumber, contactPerson: ticket.contactPerson, notes: ticket.notes,
+        subject: ticket.subject,
+        description: ticket.description,
+        assignees: (Array.isArray(ticket.assignees) ? ticket.assignees : []).map(a => a._id || a),
+        tags: ticket.tags,
+        priority: ticket.priority,
+        status: ticket.status,
+        dueAt: ticket.dueAt || null,
+        mid: ticket.mid,
+        dba: ticket.dba,
+        contactNumber: ticket.contactNumber,
+        contactPerson: ticket.contactPerson,
+        notes: ticket.notes,
       });
       if (files.length) {
         const fd = new FormData(); for (const f of files) fd.append('files', f);

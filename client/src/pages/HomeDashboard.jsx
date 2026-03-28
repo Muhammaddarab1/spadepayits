@@ -14,15 +14,15 @@ export default function HomeDashboard() {
     setLoading(true);
     try {
       const fetchT = axios.get('/api/tickets').then(r => r.data).catch(e => {
-        if (e.response?.status !== 403) console.error('Failed to fetch tickets:', e);
+        if (e.response?.status !== 403 && e.response?.status !== 423) console.error('Failed to fetch tickets:', e);
         return [];
       });
       const fetchS = axios.get('/api/sales').then(r => r.data).catch(e => {
-        if (e.response?.status !== 403) console.error('Failed to fetch sales:', e);
+        if (e.response?.status !== 403 && e.response?.status !== 423) console.error('Failed to fetch sales:', e);
         return [];
       });
       const fetchN = axios.get('/api/notifications').then(r => r.data).catch(e => {
-        console.error('Failed to fetch notifications:', e);
+        if (e.response?.status !== 423) console.error('Failed to fetch notifications:', e);
         return [];
       });
 
@@ -51,11 +51,25 @@ export default function HomeDashboard() {
     } catch {}
   };
 
-  const isMe = useCallback((u) => (u?._id || u) === user?.id, [user]);
+  const deleteNotification = async (id) => {
+    try {
+      await axios.delete(`/api/notifications/${id}`);
+      setNotifications(notifications.filter(n => n._id !== id));
+    } catch {}
+  };
+
+  const isMe = useCallback((u) => {
+    const targetId = u?._id || u;
+    return targetId && targetId === user?.id;
+  }, [user]);
+
   const canSeeSales = user?.role === 'Admin' || user?.permissions?.['sales.viewMenu'];
   const canSeeTroubleshooting = user?.role === 'Admin' || user?.permissions?.['troubleshooting.viewMenu'];
 
   const counts = useMemo(() => {
+    // If user is not admin and has no viewAll, the 'tickets' array already only contains their own tickets.
+    // In this case, 'Open' and 'In Progress' cards will show THEIR counts.
+    // If they ARE admin or have viewAll, it shows system-wide counts.
     const t = {
       open: tickets.filter(x => x.status === 'Open').length,
       prog: tickets.filter(x => x.status === 'In Progress').length,
@@ -224,15 +238,33 @@ export default function HomeDashboard() {
                         <p className="text-xs text-gray-500 mt-1 line-clamp-2">
                           {n.message}
                         </p>
-                        {n.link && (
-                          <Link 
-                            to={n.link} 
-                            onClick={() => markRead(n._id)}
-                            className="text-[10px] text-primary hover:underline font-bold mt-2 inline-block"
+                        <div className="flex items-center gap-3 mt-2">
+                          {n.link && (
+                            <Link 
+                              to={n.link} 
+                              onClick={() => markRead(n._id)}
+                              className="text-[10px] text-primary hover:underline font-bold inline-block"
+                            >
+                              VIEW TICKET
+                            </Link>
+                          )}
+                          {!n.isRead && (
+                            <button 
+                              onClick={() => markRead(n._id)}
+                              className="text-[10px] text-green-600 hover:text-green-700 font-bold"
+                              title="Mark as read"
+                            >
+                              READ
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => deleteNotification(n._id)}
+                            className="text-[10px] text-red-500 hover:text-red-600 font-bold"
+                            title="Delete notification"
                           >
-                            VIEW TICKET
-                          </Link>
-                        )}
+                            REMOVE
+                          </button>
+                        </div>
                       </div>
                       {!n.isRead && <div className="h-2 w-2 rounded-full bg-primary mt-1.5" />}
                     </div>
@@ -258,10 +290,6 @@ export default function HomeDashboard() {
             </div>
           </section>
         </div>
-      </div>
-      <div className="flex gap-3">
-        <Link to="/troubleshooting" className="px-3 py-2 rounded bg-blue-600 text-white hover:opacity-90">Troubleshooting</Link>
-        <Link to="/sales" className="px-3 py-2 rounded bg-emerald-600 text-white hover:opacity-90">Sales</Link>
       </div>
     </div>
   );

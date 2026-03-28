@@ -5,7 +5,7 @@ import { requirePermission } from '../middleware/permission.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { createSales, listSales, getSales, updateSales, deleteSales, addAttachments } from '../controllers/salesController.js';
+import { createSales, listSales, getSales, updateSales, deleteSales, addAttachments, addSalesComment } from '../controllers/salesController.js';
 
 const router = Router();
 
@@ -13,6 +13,7 @@ router.get('/', auth, passwordGuard, listSales);
 router.get('/:id', auth, passwordGuard, getSales);
 router.post('/', auth, passwordGuard, requirePermission('sales.create'), createSales);
 router.patch('/:id', auth, passwordGuard, requirePermission('sales.update'), updateSales);
+router.post('/:id/comments', auth, passwordGuard, addSalesComment);
 
 const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);

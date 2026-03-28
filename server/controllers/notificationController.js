@@ -1,4 +1,5 @@
 import Notification from '../models/Notification.js';
+import mongoose from 'mongoose';
 
 /**
  * GET /api/notifications
@@ -6,7 +7,7 @@ import Notification from '../models/Notification.js';
  */
 export const listNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.user.id })
+    const notifications = await Notification.find({ recipient: new mongoose.Types.ObjectId(req.user.id) })
       .sort({ createdAt: -1 })
       .limit(50);
     return res.json(notifications);
@@ -22,7 +23,7 @@ export const listNotifications = async (req, res) => {
 export const markAsRead = async (req, res) => {
   try {
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, recipient: req.user.id },
+      { _id: req.params.id, recipient: new mongoose.Types.ObjectId(req.user.id) },
       { isRead: true },
       { new: true }
     );
@@ -40,7 +41,7 @@ export const markAsRead = async (req, res) => {
 export const markAllRead = async (req, res) => {
   try {
     await Notification.updateMany(
-      { recipient: req.user.id, isRead: false },
+      { recipient: new mongoose.Types.ObjectId(req.user.id), isRead: false },
       { isRead: true }
     );
     return res.json({ success: true });
@@ -57,7 +58,7 @@ export const deleteNotification = async (req, res) => {
   try {
     const notification = await Notification.findOneAndDelete({
       _id: req.params.id,
-      recipient: req.user.id
+      recipient: new mongoose.Types.ObjectId(req.user.id)
     });
     if (!notification) return res.status(404).json({ message: 'Notification not found' });
     return res.json({ success: true });

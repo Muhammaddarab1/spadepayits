@@ -8,6 +8,7 @@ export const passwordGuard = (req, res, next) => {
   const allowed = [
     { method: 'POST', path: '/api/auth/change-password' },
     { method: 'GET', path: '/api/users/me' },
+    { method: 'GET', path: '/api/notifications' },
   ];
   const pass = allowed.some(a => a.method === req.method && req.path.startsWith(a.path));
   if (pass) return next();

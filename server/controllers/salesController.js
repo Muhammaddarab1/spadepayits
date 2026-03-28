@@ -1,7 +1,16 @@
 import SalesTicket from '../models/SalesTicket.js';
 import User from '../models/User.js';
+import ActivityLog from '../models/ActivityLog.js';
 import path from 'path';
 import { createInternalNotification } from './notificationController.js';
+
+const logActivity = async ({ action, user, salesTicket, details }) => {
+  try {
+    await ActivityLog.create({ action, user, salesTicket, details });
+  } catch {
+    // non-blocking
+  }
+};
 
 export const createSales = async (req, res) => {
   try {
@@ -10,7 +19,10 @@ export const createSales = async (req, res) => {
       contactPersonName, contactNumber, email, einOrSsn,
       turnaroundTime, dueAt, assignee, assignees, notes,
     } = req.body;
-    if (!businessName || !address || !ownerName || !contactPersonName || !contactNumber || !email || !einOrSsn || !turnaroundTime || (!assignee && (!Array.isArray(assignees) || assignees.length === 0))) {
+
+    const hasAssignee = assignee || (Array.isArray(assignees) && assignees.length > 0);
+
+    if (!businessName || !address || !ownerName || !contactPersonName || !contactNumber || !email || !einOrSsn || !turnaroundTime || !hasAssignee) {
       return res.status(400).json({ message: 'All required fields must be provided' });
     }
     const resolvedAssignees = Array.isArray(assignees) && assignees.length ? assignees : [assignee];
@@ -21,15 +33,26 @@ export const createSales = async (req, res) => {
       contactPersonName, contactNumber, email, einOrSsn,
       turnaroundTime, dueAt: dueAt || null, assignee: resolvedAssignees[0], assignees: resolvedAssignees, createdBy: req.user.id, notes,
     });
-    // notify assignees via in-app notification
+    await logActivity({
+      action: 'CREATE_SALES_TICKET',
+      user: req.user.id,
+      salesTicket: doc._id,
+      details: `Sales ticket created for ${businessName}`,
+    });
+    // notify assignees and admins via in-app notification
     (async () => {
       try {
-        for (const assigneeId of resolvedAssignees) {
+        const admins = await User.find({ role: 'Admin' }).select('_id');
+        const adminIds = admins.map(a => a._id.toString());
+        const recipients = new Set([...resolvedAssignees.map(String), ...adminIds]);
+        recipients.delete(req.user.id.toString());
+        
+        for (const recipientId of recipients) {
           await createInternalNotification({
-            recipient: assigneeId,
+            recipient: recipientId,
             sender: req.user.id,
             title: '🎟️ New Sales Ticket Assigned',
-            message: `You have been assigned to a new sales ticket for ${businessName}`,
+            message: `New sales ticket for ${businessName} (assigned to ${resolvedAssignees.length} members)`,
             link: `/sales/${doc._id}`,
             type: 'Assignment'
           });
@@ -68,11 +91,51 @@ export const getSales = async (req, res) => {
     const item = await SalesTicket.findById(req.params.id)
       .populate('assignee', 'name email role')
       .populate('assignees', 'name email role')
-      .populate('createdBy', 'name email role');
+      .populate('createdBy', 'name email role')
+      .populate('comments.author', 'name email avatar');
     if (!item) return res.status(404).json({ message: 'Not found' });
     return res.json(item);
   } catch {
     return res.status(500).json({ message: 'Failed to fetch sales ticket' });
+  }
+};
+
+export const addSalesComment = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ message: 'Comment text required' });
+    const item = await SalesTicket.findById(req.params.id);
+    if (!item) return res.status(404).json({ message: 'Sales ticket not found' });
+    const comment = { text: text.trim(), author: req.user.id, createdAt: new Date() };
+    item.comments = [...(item.comments || []), comment];
+    await item.save();
+    await logActivity({ action: 'SALES_COMMENT_ADDED', user: req.user.id, salesTicket: item._id, details: `Comment added to sales ticket` });
+    
+    // notify ticket participants about comment
+    (async () => {
+      try {
+        const admins = await User.find({ role: 'Admin' }).select('_id');
+        const ids = new Set([
+          ...(item.assignees||[]).map(String), 
+          item.createdBy?.toString(),
+          ...admins.map(a => a._id.toString())
+        ].filter(Boolean));
+        ids.delete(req.user.id.toString());
+        for (const recipientId of ids) {
+          await createInternalNotification({
+            recipient: recipientId,
+            sender: req.user.id,
+            title: `💬 New Comment: ${item.businessName}`,
+            message: `${req.user.name} added a comment to sales ticket: "${comment.text.substring(0, 50)}${comment.text.length > 50 ? '...' : ''}"`,
+            link: `/sales/${item._id}`,
+            type: 'Comment'
+          });
+        }
+      } catch {}
+    })();
+    return res.status(201).json(comment);
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to add comment' });
   }
 };
 
@@ -107,12 +170,20 @@ export const updateSales = async (req, res) => {
     if (updates.turnaroundTime !== undefined) item.turnaroundTime = updates.turnaroundTime;
     if (updates.notes !== undefined) item.notes = updates.notes;
     await item.save();
+    await logActivity({
+      action: 'UPDATE_SALES_TICKET',
+      user: req.user.id,
+      salesTicket: item._id,
+      details: `Sales ticket for ${item.businessName} updated`,
+    });
 
     // Notify on changes
     (async () => {
       try {
         const newAssignees = item.assignees?.map(String) || [];
         const addedAssignees = newAssignees.filter(id => !oldAssignees.includes(id));
+        const admins = await User.find({ role: 'Admin' }).select('_id');
+        const adminIds = admins.map(a => a._id.toString());
         
         // Notify new assignees
         for (const userId of addedAssignees) {
@@ -128,8 +199,8 @@ export const updateSales = async (req, res) => {
         
         // Notify all participants about status change
         if (oldStatus !== item.status) {
-          const participants = new Set([...newAssignees, item.createdBy?.toString()].filter(Boolean));
-          participants.delete(req.user.id);
+          const participants = new Set([...newAssignees, item.createdBy?.toString(), ...adminIds].filter(Boolean));
+          participants.delete(req.user.id.toString());
           for (const userId of participants) {
             await createInternalNotification({
               recipient: userId,

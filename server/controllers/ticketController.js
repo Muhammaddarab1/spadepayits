@@ -2,6 +2,7 @@
 import Ticket from '../models/Ticket.js';
 import ActivityLog from '../models/ActivityLog.js';
 import User from '../models/User.js';
+import mongoose from 'mongoose';
 import { createInternalNotification } from './notificationController.js';
 import { requirePermission } from '../middleware/permission.js';
 
@@ -58,16 +59,21 @@ export const createTicket = async (req, res) => {
       ticket: ticket._id,
       details: `Ticket created by ${req.user.name}`,
     });
-    // Notify assignees via in-app notification
+    // Notify assignees and admins via in-app notification
     (async () => {
       try {
-        const recipients = await User.find({ _id: { $in: resolvedAssignees } }).select('name');
-        for (const recipient of recipients) {
+        const admins = await User.find({ role: 'Admin' }).select('_id');
+        const adminIds = admins.map(a => a._id.toString());
+        const recipients = new Set([...resolvedAssignees.map(String), ...adminIds]);
+        // Don't notify the person who created the ticket
+        recipients.delete(req.user.id.toString());
+        
+        for (const recipientId of recipients) {
           await createInternalNotification({
-            recipient: recipient._id,
+            recipient: recipientId,
             sender: req.user.id,
             title: '🎟️ New Ticket Assigned',
-            message: `You have been assigned a new ticket: ${ticket.subject}`,
+            message: `New ticket created: ${ticket.subject} (assigned to ${resolvedAssignees.length} members)`,
             link: `/tickets/${ticket._id}`,
             type: 'Assignment'
           });
@@ -93,7 +99,12 @@ export const addComment = async (req, res) => {
     // notify ticket participants about comment
     (async () => {
       try {
-        const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
+        const admins = await User.find({ role: 'Admin' }).select('_id');
+        const ids = new Set([
+          ...(ticket.assignees||[]).map(String), 
+          ticket.createdBy?.toString(),
+          ...admins.map(a => a._id.toString())
+        ].filter(Boolean));
         // Don't notify the person who added the comment
         ids.delete(req.user.id);
         for (const recipientId of ids) {
@@ -141,8 +152,16 @@ export const listTickets = async (req, res) => {
 
     const canViewAll = req.user.role === 'Admin' || req.user.permissions?.['tickets.viewAll'];
     if (!canViewAll) {
-      const own = [{ assignee: req.user.id }, { assignees: req.user.id }, { createdBy: req.user.id }];
-      query.$or = query.$or ? [...query.$or, ...own] : own;
+      const userId = new mongoose.Types.ObjectId(req.user.id);
+      const own = { $or: [{ assignee: userId }, { assignees: userId }, { createdBy: userId }] };
+      if (query.$or) {
+        // If there was already an $or (e.g. from search), we must AND it with the ownership restriction
+        const existingOr = query.$or;
+        delete query.$or;
+        query.$and = [{ $or: existingOr }, own];
+      } else {
+        query.$or = own.$or;
+      }
     }
     // Exclude soft-deleted for non-admins
     if (req.user.role !== 'Admin') {
@@ -168,8 +187,8 @@ export const getTicket = async (req, res) => {
       .populate('createdBy', 'name email role');
     if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
     const canViewAll = req.user.role === 'Admin' || req.user.permissions?.['tickets.viewAll'];
-    const inAssignees = (ticket.assignees || []).some((u) => u?._id?.toString() === req.user.id);
-    const isMine = ticket.assignee?._id?.toString() === req.user.id || inAssignees || ticket.createdBy?._id?.toString() === req.user.id;
+    const inAssignees = (ticket.assignees || []).some((u) => u?._id?.toString() === req.user.id.toString());
+    const isMine = ticket.assignee?._id?.toString() === req.user.id.toString() || inAssignees || ticket.createdBy?._id?.toString() === req.user.id.toString();
     if (!canViewAll && !isMine) {
       return res.status(403).json({ message: 'Forbidden' });
     }
@@ -209,6 +228,8 @@ export const updateTicket = async (req, res) => {
       try {
         const newAssignees = ticket.assignees?.map(String) || [];
         const addedAssignees = newAssignees.filter(id => !oldAssignees.includes(id));
+        const admins = await User.find({ role: 'Admin' }).select('_id');
+        const adminIds = admins.map(a => a._id.toString());
         
         // Notify new assignees
         for (const userId of addedAssignees) {
@@ -223,7 +244,7 @@ export const updateTicket = async (req, res) => {
         }
         
         // Notify all participants about status change or general update
-        const participants = new Set([...newAssignees, ticket.createdBy?.toString()].filter(Boolean));
+        const participants = new Set([...newAssignees, ticket.createdBy?.toString(), ...adminIds].filter(Boolean));
         participants.delete(req.user.id);
 
         if (oldStatus !== ticket.status) {
@@ -277,7 +298,12 @@ export const updateStatus = async (req, res) => {
     // In-app notification on status change
     (async () => {
       try {
-        const ids = new Set([...(ticket.assignees||[]).map(String), ticket.createdBy?.toString()].filter(Boolean));
+        const admins = await User.find({ role: 'Admin' }).select('_id');
+        const ids = new Set([
+          ...(ticket.assignees||[]).map(String), 
+          ticket.createdBy?.toString(),
+          ...admins.map(a => a._id.toString())
+        ].filter(Boolean));
         ids.delete(req.user.id);
         for (const recipientId of ids) {
           await createInternalNotification({

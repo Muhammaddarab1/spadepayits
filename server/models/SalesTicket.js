@@ -29,6 +29,13 @@ const salesTicketSchema = new mongoose.Schema(
     ],
     reminder24Sent: { type: Boolean, default: false },
     deadlineSent: { type: Boolean, default: false },
+    comments: [
+      {
+        text: String,
+        author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
