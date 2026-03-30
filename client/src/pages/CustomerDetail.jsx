@@ -85,12 +85,31 @@ export default function CustomerDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <BackButton />
-        <div>
-          <h2 className="text-2xl font-bold text-slateText">{customer.dba}</h2>
-          <p className="text-sm text-gray-500">MID: {customer.merchantId}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <BackButton />
+          <div>
+            <h2 className="text-2xl font-bold text-slateText">{customer.dba}</h2>
+            <p className="text-sm text-gray-500">MID: {customer.merchantId}</p>
+          </div>
         </div>
+        <button
+          onClick={() => navigate('/tickets/new', {
+            state: {
+              mid: customer.merchantId,
+              dba: customer.dba,
+              contactPerson: customer.contactName || customer.ownerName || '',
+              contactNumber: customer.phone || '',
+              notes: `Customer Details:\nLegal Name: ${customer.legalName}\nEmail: ${customer.email}\nAddress: ${customer.businessAddress}, ${customer.businessCity}, ${customer.businessState} ${customer.businessZip}`
+            }
+          })}
+          className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors flex items-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+          </svg>
+          Create Ticket
+        </button>
       </div>
 
       <div className="grid gap-6">

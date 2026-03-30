@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import axios from '../api/axiosInstance.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import BackButton from '../components/BackButton.jsx';
 import MultiSelect from '../components/MultiSelect.jsx';
 
 export default function TicketNew() {
   const { user } = useAuth();
+  const location = useLocation();
+  const preData = location.state || {};
+
   const [users, setUsers] = useState([]);
   const [tagsCatalog, setTagsCatalog] = useState([]);
   const [form, setForm] = useState({
@@ -17,11 +20,11 @@ export default function TicketNew() {
     priority: 'Medium',
     status: 'Open',
     dueAt: '',
-    mid: '',
-    dba: '',
-    contactNumber: '',
-    contactPerson: '',
-    notes: '',
+    mid: preData.mid || '',
+    dba: preData.dba || '',
+    contactNumber: preData.contactNumber || '',
+    contactPerson: preData.contactPerson || '',
+    notes: preData.notes || '',
   });
   const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
