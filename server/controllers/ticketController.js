@@ -184,7 +184,8 @@ export const getTicket = async (req, res) => {
     const ticket = await Ticket.findById(req.params.id)
       .populate('assignee', 'name email role')
       .populate('assignees', 'name email role')
-      .populate('createdBy', 'name email role');
+      .populate('createdBy', 'name email role')
+      .populate('comments.author', 'name email role');
     if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
     const canViewAll = req.user.role === 'Admin' || req.user.permissions?.['tickets.viewAll'];
     const inAssignees = (ticket.assignees || []).some((u) => u?._id?.toString() === req.user.id.toString());

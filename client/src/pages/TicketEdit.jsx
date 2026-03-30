@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import axios from '../api/axiosInstance.js';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 import BackButton from '../components/BackButton.jsx';
 import MultiSelect from '../components/MultiSelect.jsx';
 
 export default function TicketEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [ticket, setTicket] = useState(null);
   const [users, setUsers] = useState([]);
   const [tagsCatalog, setTagsCatalog] = useState([]);
@@ -322,11 +324,11 @@ export default function TicketEdit() {
                     commentsList.map((c, i) => (
                       <div key={i} className="flex gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 group transition-all">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
-                          {c.createdBy?.name?.charAt(0) || 'U'}
+                          {c.author?.name?.charAt(0) || 'U'}
                         </div>
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-slateText">{c.createdBy?.name || 'Unknown User'}</span>
+                            <span className="text-sm font-bold text-slateText">{c.author?.name || 'Unknown User'}</span>
                             <span className="text-[10px] text-gray-400">{new Date(c.createdAt).toLocaleString()}</span>
                           </div>
                           <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{c.text}</p>
@@ -351,7 +353,12 @@ export default function TicketEdit() {
                           if (!commentText.trim()) return;
                           try {
                             const res = await axios.post(`/api/tickets/${id}/comments`, { text: commentText });
-                            setCommentsList(l => [...l, res.data]);
+                            // The backend returns the raw comment object, we need to add the user info manually or re-fetch
+                            const newComment = {
+                              ...res.data,
+                              author: { name: user.name }
+                            };
+                            setCommentsList(l => [...l, newComment]);
                             setCommentText('');
                           } catch (e) {}
                         }} 
