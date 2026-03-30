@@ -65,10 +65,53 @@ export const importCustomers = async (req, res) => {
     const { customers } = req.body;
     if (!Array.isArray(customers)) return res.status(400).json({ message: 'Invalid data format' });
     
-    // Simple bulk insert for now
-    const results = await Customer.insertMany(customers, { ordered: false });
-    res.json({ success: true, count: results.length });
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+
+    for (const customerData of customers) {
+      const { merchantId, ...rest } = customerData;
+      if (!merchantId) {
+        skippedCount++;
+        continue;
+      }
+
+      const existingCustomer = await Customer.findOne({ merchantId });
+
+      if (existingCustomer) {
+        // Compare fields to see if update is needed
+        let changes = {};
+        const existingData = existingCustomer.toObject();
+
+        for (const key in rest) {
+          const newVal = rest[key];
+          const oldVal = existingData[key];
+
+          // Compare basic values (string, number, dates as strings)
+          if (newVal !== undefined && String(newVal) !== String(oldVal || '')) {
+            changes[key] = newVal;
+          }
+        }
+
+        if (Object.keys(changes).length > 0) {
+          await Customer.updateOne({ merchantId }, { $set: changes });
+          updatedCount++;
+        } else {
+          skippedCount++;
+        }
+      } else {
+        await Customer.create({ ...customerData, createdBy: req.user.id });
+        createdCount++;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      count: createdCount + updatedCount,
+      details: { created: createdCount, updated: updatedCount, skipped: skippedCount }
+    });
   } catch (error) {
+    console.error('Import error:', error);
     res.status(500).json({ message: 'Failed to import customers' });
   }
 };

@@ -18,6 +18,7 @@ import SalesList from './pages/SalesList.jsx';
 import MyAssignments from './pages/MyAssignments.jsx';
 import Reports from './pages/Reports.jsx';
 import Customers from './pages/Customers.jsx';
+import CustomerDetail from './pages/CustomerDetail.jsx';
 
 const Protected = () => {
   const { user } = useAuth();
@@ -77,6 +78,7 @@ export default function App() {
           <Route path="profile" element={<Profile />} />
           <Route path="reports" element={<Reports />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="customers/:id" element={<CustomerDetail />} />
           <Route element={<SalesProtected />}>
             <Route path="sales" element={<SalesList />} />
             <Route path="sales/new" element={<SalesNew />} />
