@@ -94,6 +94,27 @@ export default function Users() {
     }
   };
 
+  const restoreAccount = async (id) => {
+    try {
+      await axios.patch(`/api/users/${id}/restore`);
+      load();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to restore account');
+    }
+  };
+
+  const resetPassword = async (id) => {
+    const newPass = prompt('Enter new temporary password for this user:');
+    if (!newPass) return;
+    try {
+      await axios.patch(`/api/users/${id}/reset-password`, { newPassword: newPass });
+      alert('Password reset successfully. The user will be prompted to change it on next login.');
+      load();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to reset password');
+    }
+  };
+
   const updateRole = async (id, newRole) => {
     try {
       await axios.patch(`/api/users/${id}/role`, { role: newRole });
@@ -208,9 +229,14 @@ export default function Users() {
                     </div>
                   </td>
                   <td className="px-3 py-2">{u.deleted ? 'Closed' : 'Active'}</td>
-                  <td className="px-3 py-2 text-right">
-                    {!u.deleted && (
-                      <button onClick={()=>closeAccount(u._id)} className="px-3 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100">Close</button>
+                  <td className="px-3 py-2 text-right space-x-2">
+                    {u.deleted ? (
+                      <button onClick={()=>restoreAccount(u._id)} className="px-3 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100">Restore</button>
+                    ) : (
+                      <>
+                        <button onClick={()=>resetPassword(u._id)} className="px-3 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">Reset Password</button>
+                        <button onClick={()=>closeAccount(u._id)} className="px-3 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100">Close</button>
+                      </>
                     )}
                   </td>
                 </tr>

@@ -48,8 +48,19 @@ export const createUser = async (req, res) => {
   try {
     const { name, email, password, role, permissions } = req.body;
     if (!name || !email || !password) return res.status(400).json({ message: 'All fields are required' });
+    
     const exists = await User.findOne({ email });
-    if (exists) return res.status(409).json({ message: 'Email already in use' });
+    if (exists) {
+      if (exists.deleted) {
+        return res.status(409).json({ 
+          message: 'This email belongs to a closed account. You can restore it from the user list instead of creating a new one.',
+          isDeleted: true,
+          userId: exists._id
+        });
+      }
+      return res.status(409).json({ message: 'Email already in use' });
+    }
+    
     const desiredRole = role === 'Admin' ? 'Admin' : 'User';
     const user = await User.create({ name, email, password, role: desiredRole, permissions: permissions || {} });
     return res.status(201).json({ id: user._id, name: user.name, email: user.email, role: user.role, permissions: user.permissions || {} });
@@ -103,5 +114,50 @@ export const deleteUser = async (req, res) => {
     return res.json({ message: 'Account closed' });
   } catch {
     return res.status(500).json({ message: 'Failed to close account' });
+  }
+};
+
+export const resetUserPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    if (!newPassword) return res.status(400).json({ message: 'New password required' });
+    if (req.user.role !== 'Admin') return res.status(403).json({ message: 'Forbidden' });
+    
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    user.password = newPassword;
+    user.mustChangePassword = true;
+    // If account was closed, restore it when resetting password
+    if (user.deleted) {
+      user.deleted = false;
+      user.deletedAt = undefined;
+      user.deletedBy = undefined;
+    }
+    
+    await user.save();
+    return res.json({ message: 'Password reset and account restored if it was closed' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to reset password' });
+  }
+};
+
+export const restoreUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.role !== 'Admin') return res.status(403).json({ message: 'Forbidden' });
+    
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    user.deleted = false;
+    user.deletedAt = undefined;
+    user.deletedBy = undefined;
+    
+    await user.save();
+    return res.json({ message: 'Account restored successfully' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to restore account' });
   }
 };

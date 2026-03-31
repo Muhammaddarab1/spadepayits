@@ -1,6 +1,6 @@
 // User routes: administrative user listing and self profile
 import { Router } from 'express';
-import { listUsers, getMe, createUser, updateUserRole, deleteUser, updateUserPermissions, updateMe } from '../controllers/userController.js';
+import { listUsers, getMe, createUser, updateUserRole, deleteUser, updateUserPermissions, updateMe, resetUserPassword, restoreUser } from '../controllers/userController.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -22,6 +22,8 @@ router.patch('/me', auth, upload.single('avatar'), updateMe);
 router.post('/', auth, passwordGuard, requirePermission('users.manage'), createUser);
 router.patch('/:id/role', auth, passwordGuard, requirePermission('users.manage'), updateUserRole);
 router.patch('/:id/permissions', auth, passwordGuard, requirePermission('users.manage'), updateUserPermissions);
+router.patch('/:id/reset-password', auth, passwordGuard, requirePermission('users.manage'), resetUserPassword);
+router.patch('/:id/restore', auth, passwordGuard, requirePermission('users.manage'), restoreUser);
 router.delete('/:id', auth, passwordGuard, requirePermission('accounts.delete'), deleteUser);
 
 export default router;
