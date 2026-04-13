@@ -1,4 +1,6 @@
 import Customer from '../models/Customer.js';
+import Inventory from '../models/Inventory.js';
+import ActivityLog from '../models/ActivityLog.js';
 
 export const listCustomers = async (req, res) => {
   try {
@@ -105,13 +107,171 @@ export const importCustomers = async (req, res) => {
       }
     }
 
-    res.json({ 
-      success: true, 
-      count: createdCount + updatedCount,
-      details: { created: createdCount, updated: updatedCount, skipped: skippedCount }
+    res.json({
+      message: `Import complete: ${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped.`
     });
   } catch (error) {
-    console.error('Import error:', error);
     res.status(500).json({ message: 'Failed to import customers' });
+  }
+};
+
+export const assignDevice = async (req, res) => {
+  try {
+    const { inventoryId, assignmentType } = req.body;
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+
+    const device = await Inventory.findById(inventoryId);
+    if (!device) return res.status(404).json({ message: 'Device not found in inventory' });
+
+    if (device.availableQuantity <= 0) {
+      return res.status(400).json({ message: 'No available stock for this device' });
+    }
+
+    // Update inventory
+    device.availableQuantity -= 1;
+    device.assignedQuantity += 1;
+    await device.save();
+
+    // Add assignment to customer
+    customer.assignedDevices.push({
+      inventoryId,
+      deviceName: device.deviceName,
+      assignmentType,
+      assignmentDate: new Date(),
+      status: 'Active'
+    });
+    await customer.save();
+
+    await ActivityLog.create({
+      action: 'Device Assigned',
+      user: req.user.id,
+      details: `Assigned ${device.deviceName} (${assignmentType}) to merchant ${customer.dba}`
+    });
+
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const returnDevice = async (req, res) => {
+  try {
+    const { assignmentId, returnReason } = req.body; // returnReason: 'OK', 'Faulty'
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+
+    const assignment = customer.assignedDevices.id(assignmentId);
+    if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
+
+    if (assignment.status === 'Returned') {
+      return res.status(400).json({ message: 'Device already returned' });
+    }
+
+    const device = await Inventory.findById(assignment.inventoryId);
+    if (!device) return res.status(404).json({ message: 'Device not found in inventory' });
+
+    // Update assignment status
+    assignment.status = 'Returned';
+    
+    // Update inventory
+    device.assignedQuantity -= 1;
+    device.underInspectionQuantity += 1;
+    await device.save();
+
+    await customer.save();
+
+    await ActivityLog.create({
+      action: 'Device Returned',
+      user: req.user.id,
+      details: `Device ${device.deviceName} returned from merchant ${customer.dba}. Moved to Under Inspection.`
+    });
+
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const processInspection = async (req, res) => {
+  try {
+    const { inventoryId, result } = req.body; // result: 'OK', 'Faulty'
+    const device = await Inventory.findById(inventoryId);
+    if (!device) return res.status(404).json({ message: 'Device not found' });
+
+    if (device.underInspectionQuantity <= 0) {
+      return res.status(400).json({ message: 'No devices under inspection' });
+    }
+
+    device.underInspectionQuantity -= 1;
+    if (result === 'OK') {
+      device.availableQuantity += 1;
+    } else {
+      device.faultyQuantity += 1;
+    }
+    await device.save();
+
+    await ActivityLog.create({
+      action: 'Inspection Complete',
+      user: req.user.id,
+      details: `Inspection for ${device.deviceName} complete. Result: ${result}`
+    });
+
+    res.json(device);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const replaceDevice = async (req, res) => {
+  try {
+    const { oldAssignmentId, newInventoryId, assignmentType } = req.body;
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ message: 'Customer not found' });
+
+    const oldAssignment = customer.assignedDevices.id(oldAssignmentId);
+    if (!oldAssignment) return res.status(404).json({ message: 'Old assignment not found' });
+
+    const newDevice = await Inventory.findById(newInventoryId);
+    if (!newDevice) return res.status(404).json({ message: 'New device not found' });
+
+    if (newDevice.availableQuantity <= 0) {
+      return res.status(400).json({ message: 'No available stock for the new device' });
+    }
+
+    // 1. Process the old device return
+    const oldDevice = await Inventory.findById(oldAssignment.inventoryId);
+    if (oldDevice) {
+      oldDevice.assignedQuantity -= 1;
+      oldDevice.underInspectionQuantity += 1;
+      await oldDevice.save();
+    }
+    oldAssignment.status = 'Replaced';
+
+    // 2. Assign the new device
+    newDevice.availableQuantity -= 1;
+    newDevice.assignedQuantity += 1;
+    await newDevice.save();
+
+    customer.assignedDevices.push({
+      inventoryId: newInventoryId,
+      deviceName: newDevice.deviceName,
+      assignmentType,
+      assignmentDate: new Date(),
+      status: 'Active',
+      replacementFor: oldAssignmentId
+    });
+
+    await customer.save();
+
+    await ActivityLog.create({
+      action: 'Device Replaced',
+      user: req.user.id,
+      details: `Replaced ${oldAssignment.deviceName} with ${newDevice.deviceName} for merchant ${customer.dba}`
+    });
+
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

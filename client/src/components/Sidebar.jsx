@@ -64,6 +64,9 @@ export default function Sidebar() {
         <NavLink to="/customers" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
           {!collapsed ? 'Customers' : 'CU'}
         </NavLink>
+        <NavLink to="/inventory" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>
+          {!collapsed ? 'Inventory' : 'IV'}
+        </NavLink>
         {isAdmin && (
           <>
             <NavLink to="/users" className={({ isActive }) => `block px-3 py-2 rounded transition ${isActive ? 'bg-primary text-white' : 'text-slateText hover:bg-white'}`}>

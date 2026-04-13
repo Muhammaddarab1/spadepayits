@@ -25,6 +25,7 @@ import settingsRoutes from './routes/settings.js';
 import syncRoutes from './routes/sync.js';
 import notificationRoutes from './routes/notifications.js';
 import customerRoutes from './routes/customers.js';
+import inventoryRoutes from './routes/inventory.js';
 import { startReminderService } from './utils/reminderService.js';
 
 const app = express();
@@ -85,6 +86,7 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // Global error handler (minimal)
 app.use((err, _req, res, _next) => {
@@ -179,10 +181,25 @@ const start = async () => {
     const isSrv = MONGO_URI?.includes('mongodb+srv');
     const looksDnsSrvIssue = isSrv && /querySrv/i.test(msg);
     if (looksDnsSrvIssue) {
-      console.warn('SRV DNS resolution failed locally; falling back to in-memory MongoDB for dev.');
-      await connectDB('memory');
+      console.warn('SRV DNS resolution failed locally (common on some networks/Windows).');
+      console.warn('Attempting to fallback to in-memory MongoDB for development...');
+      try {
+        await connectDB('memory');
+      } catch (memError) {
+        console.error('CRITICAL: In-memory MongoDB fallback also failed.');
+        console.error('Possible causes:');
+        console.warn('- Binary download was blocked/timed out');
+        console.warn('- Local permissions prevent starting the process');
+        console.warn('- Slow internet connection (increase launchTimeoutMS in server/config/db.js)');
+        console.log('\nSuggested Fixes:');
+        console.log('1. Use a standard MongoDB connection string (not srv://) in your .env');
+        console.log('2. Connect to a local MongoDB instance (mongodb://localhost:27017)');
+        console.log('3. Use a VPN or check your DNS settings (e.g., use Google 8.8.8.8)');
+        process.exit(1);
+      }
     } else {
-      throw e;
+      console.error('Failed to connect to MongoDB:', msg);
+      process.exit(1);
     }
   }
   await seedRoles();

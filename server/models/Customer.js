@@ -32,6 +32,16 @@ const customerSchema = new mongoose.Schema({
   statusReason: { type: String },
   diligenceDeclineStatus: { type: String },
 
+  // Equipment Assignment
+  assignedDevices: [{
+    inventoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Inventory' },
+    deviceName: { type: String }, // Redundant but helpful for quick display
+    assignmentType: { type: String, enum: ['Rental', 'Purchased'] },
+    assignmentDate: { type: Date, default: Date.now },
+    status: { type: String, enum: ['Active', 'Replaced', 'Returned'], default: 'Active' },
+    replacementFor: { type: mongoose.Schema.Types.ObjectId } // ID of the device this one replaced
+  }],
+
   // Metadata
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });

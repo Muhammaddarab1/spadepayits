@@ -7,22 +7,84 @@ export default function CustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState(null);
+  const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [assignmentData, setAssignmentData] = useState({ inventoryId: '', assignmentType: 'Rental' });
+  const [replacingId, setReplacingId] = useState(null);
+
+  const loadCustomer = async () => {
+    try {
+      const res = await axios.get(`/api/customers/${id}`);
+      setCustomer(res.data);
+    } catch (e) {
+      setError('Failed to load customer details');
+    }
+  };
+
+  const loadInventory = async () => {
+    try {
+      const res = await axios.get('/api/inventory');
+      setInventory(res.data.filter(item => item.availableQuantity > 0));
+    } catch (e) {
+      console.error('Failed to load inventory');
+    }
+  };
 
   useEffect(() => {
-    const loadCustomer = async () => {
-      try {
-        const res = await axios.get(`/api/customers/${id}`);
-        setCustomer(res.data);
-      } catch (e) {
-        setError('Failed to load customer details');
-      } finally {
-        setLoading(false);
-      }
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([loadCustomer(), loadInventory()]);
+      setLoading(false);
     };
-    loadCustomer();
+    init();
   }, [id]);
+
+  const handleAssign = async (e) => {
+    e.preventDefault();
+    if (!assignmentData.inventoryId) return;
+    setAssigning(true);
+    try {
+      await axios.post(`/api/customers/${id}/devices/assign`, assignmentData);
+      setAssignmentData({ inventoryId: '', assignmentType: 'Rental' });
+      await Promise.all([loadCustomer(), loadInventory()]);
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to assign device');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleReturn = async (assignmentId) => {
+    if (!window.confirm('Are you sure you want to return this device?')) return;
+    try {
+      await axios.post(`/api/customers/${id}/devices/return`, { assignmentId });
+      await Promise.all([loadCustomer(), loadInventory()]);
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to return device');
+    }
+  };
+
+  const handleReplace = async (e) => {
+    e.preventDefault();
+    if (!assignmentData.inventoryId) return;
+    setAssigning(true);
+    try {
+      await axios.post(`/api/customers/${id}/devices/replace`, {
+        oldAssignmentId: replacingId,
+        newInventoryId: assignmentData.inventoryId,
+        assignmentType: assignmentData.assignmentType
+      });
+      setAssignmentData({ inventoryId: '', assignmentType: 'Rental' });
+      setReplacingId(null);
+      await Promise.all([loadCustomer(), loadInventory()]);
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to replace device');
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   if (loading) return <div className="p-8 text-center animate-pulse">Loading customer details...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
@@ -112,23 +174,174 @@ export default function CustomerDetail() {
         </button>
       </div>
 
-      <div className="grid gap-6">
-        {sections.map((section, idx) => (
-          <div key={idx} className="bg-white rounded-xl border shadow-sm overflow-hidden">
-            <div className="bg-gray-50 px-6 py-3 border-b">
-              <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">{section.title}</h3>
-            </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {section.fields.map((field, fIdx) => (
-                <div key={fIdx}>
-                  <label className="text-[10px] text-gray-400 font-bold uppercase block mb-1">{field.label}</label>
-                  <span className="text-sm text-slateText font-medium">{field.value || 'N/A'}</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {sections.map((s, idx) => (
+          <div key={idx} className="bg-white p-6 rounded-lg border shadow-sm">
+            <h3 className="text-lg font-bold text-slateText mb-4 border-b pb-2">{s.title}</h3>
+            <div className="grid grid-cols-1 gap-4">
+              {s.fields.map((f, fIdx) => (
+                <div key={fIdx} className="flex justify-between border-b border-gray-50 pb-1 last:border-0">
+                  <span className="text-gray-500 text-sm">{f.label}:</span>
+                  <span className="text-slateText font-medium text-sm">{f.value || 'N/A'}</span>
                 </div>
               ))}
             </div>
           </div>
         ))}
+
+        {/* Device Assignment Section */}
+        <div className="bg-white p-6 rounded-lg border shadow-sm md:col-span-2">
+          <div className="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 className="text-lg font-bold text-slateText">Assigned Devices / Equipment</h3>
+            {!replacingId && (
+              <form onSubmit={handleAssign} className="flex gap-2 items-end">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Select Device</label>
+                  <select 
+                    className="text-sm border rounded p-1"
+                    value={assignmentData.inventoryId}
+                    onChange={(e) => setAssignmentData({ ...assignmentData, inventoryId: e.target.value })}
+                  >
+                    <option value="">-- Choose Device --</option>
+                    {inventory.map(item => (
+                      <option key={item._id} value={item._id}>{item.deviceName} ({item.availableQuantity} available)</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Type</label>
+                  <select 
+                    className="text-sm border rounded p-1"
+                    value={assignmentData.assignmentType}
+                    onChange={(e) => setAssignmentData({ ...assignmentData, assignmentType: e.target.value })}
+                  >
+                    <option value="Rental">Rental</option>
+                    <option value="Purchased">Purchased</option>
+                  </select>
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={assigning || !assignmentData.inventoryId}
+                  className="bg-primary text-white text-sm px-3 py-1 rounded hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {assigning ? 'Assigning...' : 'Assign'}
+                </button>
+              </form>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Device</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {customer.assignedDevices?.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="px-4 py-4 text-center text-sm text-gray-500">No devices assigned yet.</td>
+                  </tr>
+                ) : (
+                  customer.assignedDevices.map((d) => (
+                    <tr key={d._id} className={d.status === 'Replaced' ? 'bg-gray-50 text-gray-400' : ''}>
+                      <td className="px-4 py-2 text-sm font-medium">{d.deviceName}</td>
+                      <td className="px-4 py-2 text-sm">{d.assignmentType}</td>
+                      <td className="px-4 py-2 text-sm">{new Date(d.assignmentDate).toLocaleDateString()}</td>
+                      <td className="px-4 py-2 text-sm">
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          d.status === 'Active' ? 'bg-green-100 text-green-700' : 
+                          d.status === 'Replaced' ? 'bg-gray-200 text-gray-600' : 
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {d.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right space-x-2">
+                        {d.status === 'Active' && (
+                          <>
+                            <button 
+                              onClick={() => setReplacingId(d._id)}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Replace
+                            </button>
+                            <button 
+                              onClick={() => handleReturn(d._id)}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Return
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
+      {/* Replacement Modal/Overlay */}
+      {replacingId && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h4 className="text-lg font-bold mb-4">Replace Device</h4>
+            <p className="text-sm text-gray-600 mb-4">
+              Replacing: <strong>{customer.assignedDevices.find(d => d._id === replacingId)?.deviceName}</strong>
+            </p>
+            <form onSubmit={handleReplace} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Select New Device</label>
+                <select 
+                  className="mt-1 block w-full border rounded p-2"
+                  value={assignmentData.inventoryId}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, inventoryId: e.target.value })}
+                  required
+                >
+                  <option value="">-- Choose New Device --</option>
+                  {inventory.map(item => (
+                    <option key={item._id} value={item._id}>{item.deviceName} ({item.availableQuantity} available)</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">New Assignment Type</label>
+                <select 
+                  className="mt-1 block w-full border rounded p-2"
+                  value={assignmentData.assignmentType}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, assignmentType: e.target.value })}
+                >
+                  <option value="Rental">Rental</option>
+                  <option value="Purchased">Purchased</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button 
+                  type="button" 
+                  onClick={() => { setReplacingId(null); setAssignmentData({ inventoryId: '', assignmentType: 'Rental' }); }}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={assigning || !assignmentData.inventoryId}
+                  className="px-4 py-2 bg-primary text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {assigning ? 'Replacing...' : 'Confirm Replacement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

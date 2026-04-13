@@ -7,7 +7,11 @@ import {
   createCustomer,
   updateCustomer,
   deleteCustomer,
-  importCustomers
+  importCustomers,
+  assignDevice,
+  returnDevice,
+  replaceDevice,
+  processInspection
 } from '../controllers/customerController.js';
 
 const router = Router();
@@ -19,5 +23,11 @@ router.post('/', auth, requirePermission('users.manage'), createCustomer); // Re
 router.patch('/:id', auth, requirePermission('users.manage'), updateCustomer);
 router.delete('/:id', auth, requirePermission('users.manage'), deleteCustomer);
 router.post('/import', auth, requirePermission('users.manage'), importCustomers);
+
+// Device management routes
+router.post('/:id/devices/assign', auth, assignDevice);
+router.post('/:id/devices/return', auth, returnDevice);
+router.post('/:id/devices/replace', auth, replaceDevice);
+router.post('/devices/inspect', auth, processInspection);
 
 export default router;
